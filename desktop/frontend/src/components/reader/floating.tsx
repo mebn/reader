@@ -20,6 +20,8 @@ export function Floating({ rect, children, className, onClose }: FloatingProps) 
         />
       </PopoverAnchor>
       <PopoverContent
+        // The reader's own popover: its keyboard shortcuts keep working while it shows.
+        data-floating-panel
         side="top"
         sideOffset={8}
         className={cn("w-auto p-1.5", className)}

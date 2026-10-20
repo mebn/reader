@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 const MainName = "main"
@@ -24,7 +25,7 @@ func Options(name, title, route string) application.WebviewWindowOptions {
 		BackgroundColour: application.NewRGB(250, 250, 249),
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHiddenInset,
-			InvisibleTitleBarHeight: 44,
+			InvisibleTitleBarHeight: 54,
 			Backdrop:                application.MacBackdropNormal,
 		},
 	}
@@ -49,7 +50,21 @@ func (s *Service) OpenReader(bookID, title string) {
 		w.Focus()
 		return
 	}
-	app.Window.NewWithOptions(Options(name, title, "/window/read/"+url.PathEscape(bookID)))
+	TrackFullscreen(app.Window.NewWithOptions(Options(name, title, "/window/read/"+url.PathEscape(bookID))))
+}
+
+// FullscreenEvent tells a window's page when it enters or leaves full screen.
+const FullscreenEvent = "window:fullscreen"
+
+// TrackFullscreen hides the toolbar while the window is full screen, and tells the page
+// so its header can drop the space kept for the traffic lights.
+func TrackFullscreen(w *application.WebviewWindow) {
+	set := func(full bool) {
+		setToolbarVisible(w.NativeWindow(), !full)
+		w.EmitEvent(FullscreenEvent, full)
+	}
+	w.OnWindowEvent(events.Common.WindowFullscreen, func(*application.WindowEvent) { set(true) })
+	w.OnWindowEvent(events.Common.WindowUnFullscreen, func(*application.WindowEvent) { set(false) })
 }
 
 // SetPinned keeps the calling window above all other windows.
@@ -72,6 +87,22 @@ func (s *Service) IsPinned(ctx context.Context) bool {
 		return s.pinned[w.Name()]
 	}
 	return false
+}
+
+// SetWindowButtonsVisible shows or hides the calling window's traffic lights, so they
+// can disappear along with the reader's toolbar.
+func (s *Service) SetWindowButtonsVisible(ctx context.Context, visible bool) {
+	w := caller(ctx)
+	if w == nil {
+		return
+	}
+	state := application.ButtonHidden
+	if visible {
+		state = application.ButtonEnabled
+	}
+	w.SetCloseButtonState(state)
+	w.SetMinimiseButtonState(state)
+	w.SetMaximiseButtonState(state)
 }
 
 func (s *Service) SetTitle(ctx context.Context, title string) {

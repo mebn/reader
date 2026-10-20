@@ -1,4 +1,3 @@
-import { useIsDark } from "@/hooks/use-theme";
 import { fontFamily, resolveBackground, type ReaderSettings } from "@/lib/settings";
 
 const SAMPLE = [
@@ -7,14 +6,13 @@ const SAMPLE = [
 ];
 
 /** A small page that shows how the current settings will read. */
-export function SettingsPreview({ settings }: { settings: ReaderSettings }) {
-  const dark = useIsDark(settings.theme);
+export function SettingsPreview({ settings, dark }: { settings: ReaderSettings; dark: boolean }) {
   const bg = resolveBackground(settings, dark);
 
   return (
     <div
       className="aspect-[3/4] overflow-hidden rounded-xl shadow-sm ring-1 ring-black/5 transition-colors duration-300 dark:ring-white/10"
-      style={{ background: bg.color, padding: `${Math.max(16, settings.margin / 2.5)}px` }}
+      style={{ background: bg.color, padding: `24px ${settings.sideMargin}%` }}
     >
       <div
         className="book-content"

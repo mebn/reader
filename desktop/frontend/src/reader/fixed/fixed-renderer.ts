@@ -44,14 +44,22 @@ export class FixedRenderer implements Renderer {
   get position(): Position {
     const chapter = this.chapters.length ? Math.max(0, this.chapters.findLastIndex((c) => c.page! <= this.page)) : null;
     const lastVisible = Math.min(this.doc.pageCount, this.page + this.span);
+    const chapterStart = chapter === null ? 0 : this.chapters[chapter].page!;
+    const chapterEnd = chapter === null ? this.doc.pageCount : (this.chapters[chapter + 1]?.page ?? this.doc.pageCount);
     return {
       chapter,
       chapterCount: this.chapters.length,
       page: this.page + 1,
       pageCount: this.doc.pageCount,
+      chapterPage: chapter === null ? null : Math.max(1, this.page - chapterStart + 1),
+      chapterPageCount: chapter === null ? null : Math.max(1, chapterEnd - chapterStart),
       percent: lastVisible / this.doc.pageCount,
       locator: { page: this.page },
     };
+  }
+
+  get spread() {
+    return this.span === 2;
   }
 
   async setAppearance(appearance: Appearance) {
@@ -111,6 +119,12 @@ export class FixedRenderer implements Renderer {
     return { locator: { page: Number(slot.dataset.pageIndex), ...offsets }, text, rect: range.getBoundingClientRect() };
   }
 
+  annotationAt(x: number, y: number) {
+    // PDF highlights are marks in the invisible text layer, so the page itself never moves.
+    const mark = document.elementFromPoint(x, y)?.closest<HTMLElement>("mark[data-annotation]");
+    return mark && this.sheet.contains(mark) ? { id: mark.dataset.annotation!, rect: mark.getBoundingClientRect() } : null;
+  }
+
   isVisible(locator: Locator) {
     const page = locator.page ?? -1;
     return page >= this.page && page < this.page + this.span;
@@ -164,6 +178,7 @@ export class FixedRenderer implements Renderer {
   }
 
   private onClick = (e: MouseEvent) => {
+    if (!this.events.canInteract()) return;
     const mark = (e.target as HTMLElement).closest("mark[data-annotation]");
     if (mark && getSelection()?.isCollapsed) {
       e.stopPropagation();

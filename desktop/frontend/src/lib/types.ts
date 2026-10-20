@@ -1,6 +1,18 @@
 export const FORMATS = ["epub", "pdf", "fb2", "cbz", "txt"] as const;
 export type Format = (typeof FORMATS)[number];
 
+/** A signed-in app on the account, as the server lists it. */
+export interface Device {
+  id: string;
+  name: string;
+  platform: string;
+  createdAt: string;
+  lastSeenAt: string;
+  current: boolean;
+  /** Connected for live updates right now. */
+  online: boolean;
+}
+
 export interface SyncRecord {
   id: string;
   modifiedAt: number;

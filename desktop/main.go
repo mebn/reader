@@ -21,6 +21,7 @@ const appName = "Reader"
 
 func init() {
 	application.RegisterEvent[[]files.DroppedFile]("files:dropped")
+	application.RegisterEvent[bool](windows.FullscreenEvent)
 }
 
 func main() {
@@ -46,6 +47,7 @@ func main() {
 	opts := windows.Options(windows.MainName, appName, "/")
 	opts.EnableFileDrop = true
 	mainWindow := app.Window.NewWithOptions(opts)
+	windows.TrackFullscreen(mainWindow)
 
 	mainWindow.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
 		if dropped := fileServer.Register(e.Context().DroppedFiles()); len(dropped) > 0 {

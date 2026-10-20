@@ -71,6 +71,13 @@ type Setting struct {
 	Data string `json:"data"`
 }
 
-func All() []any {
-	return []any{&User{}, &Folder{}, &Book{}, &Progress{}, &Annotation{}, &Setting{}}
+// Device is one signed-in app. Its ID is in the device's token, so deleting the
+// row signs that device out.
+type Device struct {
+	ID         string    `gorm:"primaryKey;size:36" json:"id"`
+	UserID     string    `gorm:"index;size:36;not null" json:"-"`
+	Name       string    `json:"name"`
+	Platform   string    `json:"platform"`
+	CreatedAt  time.Time `json:"createdAt"`
+	LastSeenAt time.Time `json:"lastSeenAt"`
 }

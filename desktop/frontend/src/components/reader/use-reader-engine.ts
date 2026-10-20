@@ -8,9 +8,11 @@ import { openDocument, type TocEntry } from "@/reader/formats";
 import { turnPage, type TurnDirection } from "@/reader/page-turn";
 import { useLibrary } from "@/store/library";
 import { useSession } from "@/store/session";
+import { useBookTransition } from "@/store/transition";
 
 const SAVE_DELAY = 800;
-const RESIZE_DELAY = 120;
+/** Turns that can wait behind the current one, so a held key doesn't run away. */
+const MAX_QUEUED_TURNS = 8;
 
 type Status = { state: "loading" } | { state: "ready" } | { state: "error"; message: string };
 
@@ -20,19 +22,23 @@ interface EngineOptions {
   appearance: Appearance;
   annotations: Annotation[];
   onAnnotationClick(id: string, rect: DOMRect): void;
+  /** See {@link RendererEvents.canInteract}. */
+  canInteract?(): boolean;
 }
 
 /** Opens a book into a renderer and wires it to settings, progress and sync. */
-export function useReaderEngine({ book, container, appearance, annotations, onAnnotationClick }: EngineOptions) {
+export function useReaderEngine({ book, container, appearance, annotations, onAnnotationClick, canInteract }: EngineOptions) {
   const [status, setStatus] = useState<Status>({ state: "loading" });
   const [position, setPosition] = useState<Position | null>(null);
   const [toc, setToc] = useState<TocEntry[]>([]);
   const renderer = useRef<Renderer | null>(null);
-  const turning = useRef(false);
+  const turns = useRef({ queue: Promise.resolve(), pending: 0 });
   const lastSaved = useRef<{ locator: string; at: number }>({ locator: "", at: 0 });
+  // Opened at a highlight or note: only a page turn or a jump makes it the reading position.
+  const holdPosition = useRef(false);
 
-  const latest = useRef({ book, appearance, annotations, onAnnotationClick });
-  latest.current = { book, appearance, annotations, onAnnotationClick };
+  const latest = useRef({ book, appearance, annotations, onAnnotationClick, canInteract });
+  latest.current = { book, appearance, annotations, onAnnotationClick, canInteract };
 
   // Open the book once per book id.
   useEffect(() => {
@@ -53,13 +59,16 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
         onChange: setPosition,
         onAnnotationClick: (id, rect) => latest.current.onAnnotationClick(id, rect),
         onExternalLink: (url) => platform().openUrl(url),
+        canInteract: () => latest.current.canInteract?.() ?? true,
       });
       await instance.setAppearance(latest.current.appearance);
       instance.setAnnotations(latest.current.annotations);
 
       const saved = useLibrary.getState().progress[book.id];
       lastSaved.current = { locator: saved?.locator ?? "", at: saved?.modifiedAt ?? 0 };
-      await instance.goTo(saved ? (JSON.parse(saved.locator) as Locator) : {});
+      const jump = useBookTransition.getState().takeJump(book.id);
+      holdPosition.current = Boolean(jump);
+      await instance.goTo(jump ?? (saved ? (JSON.parse(saved.locator) as Locator) : {}));
       if (cancelled) return;
 
       renderer.current = instance;
@@ -87,25 +96,41 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
     renderer.current?.setAnnotations(annotations);
   }, [annotations, status.state]);
 
-  // Re-paginate when the window is resized.
+  // Re-lay out live while the window is resized: at most once a frame, and never two
+  // layouts at once; a size change during one is picked up right after it.
   useEffect(() => {
     const el = container.current;
     if (!el) return;
-    let timer = 0;
+    let frame = 0;
+    let busy = false;
+    let again = false;
+    const run = async () => {
+      frame = 0;
+      if (busy) return void (again = true);
+      busy = true;
+      try {
+        await renderer.current?.resize();
+      } finally {
+        busy = false;
+        if (again) {
+          again = false;
+          frame ||= requestAnimationFrame(() => void run());
+        }
+      }
+    };
     const observer = new ResizeObserver(() => {
-      clearTimeout(timer);
-      timer = window.setTimeout(() => void renderer.current?.resize(), RESIZE_DELAY);
+      frame ||= requestAnimationFrame(() => void run());
     });
     observer.observe(el);
     return () => {
       observer.disconnect();
-      clearTimeout(timer);
+      cancelAnimationFrame(frame);
     };
   }, [container]);
 
   // Save the reading position shortly after it settles.
   useEffect(() => {
-    if (status.state !== "ready" || !position) return;
+    if (status.state !== "ready" || !position || holdPosition.current) return;
     const locator = JSON.stringify(position.locator);
     if (locator === lastSaved.current.locator) return;
     const timer = setTimeout(() => {
@@ -134,17 +159,23 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
     [book.id],
   );
 
+  // Turns run one after another, but each only waits for the previous page to be laid
+  // out, not for its animation, so pressing a key five times turns five pages.
   const turn = useCallback(
-    async (direction: TurnDirection) => {
+    (direction: TurnDirection) => {
       const el = container.current;
-      if (!renderer.current || !el || turning.current) return;
-      turning.current = true;
-      try {
-        getSelection()?.removeAllRanges();
-        await turnPage(el, renderer.current, direction);
-      } finally {
-        turning.current = false;
-      }
+      const t = turns.current;
+      if (!renderer.current || !el || t.pending >= MAX_QUEUED_TURNS) return t.queue;
+      getSelection()?.removeAllRanges();
+      holdPosition.current = false;
+      t.pending++;
+      t.queue = t.queue
+        .then(async () => {
+          if (renderer.current) await turnPage(el, renderer.current, direction);
+        })
+        .catch(console.error)
+        .finally(() => t.pending--);
+      return t.queue;
     },
     [container],
   );
@@ -152,6 +183,7 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
   const goTo = useCallback(async (target: Locator | TocEntry) => {
     const r = renderer.current;
     if (!r) return;
+    holdPosition.current = false;
     const fadeOut = r.sheet.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" });
     await fadeOut.finished;
     if ("label" in target) await r.goToToc(target);

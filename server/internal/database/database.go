@@ -8,8 +8,6 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"github.com/mebn/reader/server/internal/models"
 )
 
 func Open(path string) (*gorm.DB, error) {
@@ -21,7 +19,7 @@ func Open(path string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(models.All()...); err != nil {
+	if err := migrate(db); err != nil {
 		return nil, err
 	}
 	return db, nil

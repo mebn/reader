@@ -1,7 +1,7 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { resolveDark, type ThemeMode } from "@/lib/settings";
-import { useDefaultReaderSettings } from "./use-settings";
+import { useAppSettings } from "./use-settings";
 
 /** Lets an open book temporarily drive the window theme. */
 export const useThemeOverride = create<{ mode: ThemeMode | null; set(mode: ThemeMode | null): void }>()((set) => ({
@@ -22,11 +22,12 @@ export function useIsDark(mode: ThemeMode) {
 
 /** Applies the effective theme to the document. */
 export function useApplyTheme() {
-  const defaults = useDefaultReaderSettings();
+  const [app] = useAppSettings();
   const override = useThemeOverride((s) => s.mode);
-  const dark = useIsDark(override ?? defaults.theme);
+  const dark = useIsDark(override ?? app.theme);
 
-  useEffect(() => {
+  // Before paint, so the whole window switches in the same frame.
+  useLayoutEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
   }, [dark]);

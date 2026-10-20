@@ -49,7 +49,7 @@ func (h *Handler) Sync(c *gin.Context) {
 
 // Events streams the latest version whenever this user's data changes.
 func (h *Handler) Events(c *gin.Context) {
-	updates, unsubscribe := h.hub.Subscribe(auth.UserID(c))
+	updates, closed, unsubscribe := h.hub.Subscribe(auth.UserID(c), auth.DeviceID(c))
 	defer unsubscribe()
 
 	c.Header("Content-Type", "text/event-stream")
@@ -66,6 +66,8 @@ func (h *Handler) Events(c *gin.Context) {
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case <-c.Request.Context().Done():
+			return false
+		case <-closed:
 			return false
 		case v := <-updates:
 			c.SSEvent("version", v)

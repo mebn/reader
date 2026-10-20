@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -18,15 +18,18 @@ export function Clear(): $CancellablePromise<void> {
     return $Call.ByID(590603158);
 }
 
+/**
+ * DeviceName is how this computer is listed among the account's devices: the name
+ * set in macOS Sharing settings, or the host name elsewhere.
+ */
+export function DeviceName(): $CancellablePromise<string> {
+    return $Call.ByID(2186010636);
+}
+
 export function Get(): $CancellablePromise<$models.Session> {
-    return $Call.ByID(3843838803).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(3843838803);
 }
 
 export function Set(session: $models.Session): $CancellablePromise<void> {
     return $Call.ByID(276257799, session);
 }
-
-// Private type creation functions
-const $$createType0 = $models.Session.createFrom;

@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 export function Close(): $CancellablePromise<void> {
     return $Call.ByID(1298203238);
@@ -38,4 +38,12 @@ export function SetPinned(pinned: boolean): $CancellablePromise<boolean> {
 
 export function SetTitle(title: string): $CancellablePromise<void> {
     return $Call.ByID(3448032428, title);
+}
+
+/**
+ * SetWindowButtonsVisible shows or hides the calling window's traffic lights, so they
+ * can disappear along with the reader's toolbar.
+ */
+export function SetWindowButtonsVisible(visible: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2821828867, visible);
 }

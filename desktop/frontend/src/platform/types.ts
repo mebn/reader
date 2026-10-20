@@ -6,11 +6,19 @@ export interface Session {
   email: string;
 }
 
+export interface DeviceInfo {
+  name: string;
+  platform: string;
+}
+
 /** Everything that differs between the desktop shell and a plain browser. */
 export interface Platform {
   readonly os: string;
   /** True when this window only shows a single book. */
   readonly standalone: boolean;
+
+  /** How this device is listed among the account's devices. */
+  device(): Promise<DeviceInfo>;
 
   loadSession(): Promise<Session | null>;
   saveSession(session: Session): Promise<void>;
@@ -22,6 +30,8 @@ export interface Platform {
   openReaderWindow(book: Book): Promise<void>;
   setPinned(pinned: boolean): Promise<boolean>;
   setTitle(title: string): void;
+  /** Shows or hides the window's own buttons (the macOS traffic lights). */
+  setWindowButtonsVisible(visible: boolean): void;
   openUrl(url: string): void;
   closeWindow(): void;
 

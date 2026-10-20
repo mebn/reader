@@ -1,5 +1,5 @@
-import { remoteUrl, type Session } from "@/platform/types";
-import type { Book, Changes, Collection, SyncRecord, User } from "./types";
+import { remoteUrl, type DeviceInfo, type Session } from "@/platform/types";
+import type { Book, Changes, Collection, Device, SyncRecord, User } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -41,11 +41,16 @@ async function request<T>(session: Pick<Session, "serverUrl" | "token">, method:
 }
 
 export const api = {
-  login: (serverUrl: string, email: string, password: string) =>
-    request<{ token: string; user: User }>({ serverUrl, token: "" }, "POST", "/auth/login", { email, password }),
+  login: (serverUrl: string, email: string, password: string, device: DeviceInfo) =>
+    request<{ token: string; user: User }>({ serverUrl, token: "" }, "POST", "/auth/login", { email, password, device }),
 
-  register: (serverUrl: string, email: string, password: string) =>
-    request<{ token: string; user: User }>({ serverUrl, token: "" }, "POST", "/auth/register", { email, password }),
+  register: (serverUrl: string, email: string, password: string, device: DeviceInfo) =>
+    request<{ token: string; user: User }>({ serverUrl, token: "" }, "POST", "/auth/register", { email, password, device }),
+
+  /** Swaps a token from before devices were tracked for one bound to this device. */
+  registerDevice: (s: Session, device: DeviceInfo) => request<{ token: string; user: User }>(s, "POST", "/auth/device", device),
+  devices: (s: Session) => request<Device[]>(s, "GET", "/devices"),
+  removeDevice: (s: Session, id: string) => request<void>(s, "DELETE", `/devices/${id}`),
 
   sync: (s: Session, since: number) => request<Changes>(s, "GET", `/sync?since=${since}`),
 

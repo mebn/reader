@@ -2,28 +2,38 @@ package events
 
 import "sync"
 
+// subscription is one open event stream, from one device.
+type subscription struct {
+	deviceID string
+	updates  chan int64
+	// closed is closed when the device is signed out, ending its stream.
+	closed chan struct{}
+}
+
 // Hub fans out change notifications to every connected device of a user.
 type Hub struct {
 	mu   sync.Mutex
-	subs map[string]map[chan int64]struct{}
+	subs map[string]map[*subscription]struct{}
 }
 
 func NewHub() *Hub {
-	return &Hub{subs: map[string]map[chan int64]struct{}{}}
+	return &Hub{subs: map[string]map[*subscription]struct{}{}}
 }
 
-func (h *Hub) Subscribe(userID string) (<-chan int64, func()) {
-	ch := make(chan int64, 1)
+// Subscribe opens a stream for a device. Updates carry the newest version; closed
+// fires when the device is signed out.
+func (h *Hub) Subscribe(userID, deviceID string) (updates <-chan int64, closed <-chan struct{}, unsubscribe func()) {
+	sub := &subscription{deviceID: deviceID, updates: make(chan int64, 1), closed: make(chan struct{})}
 	h.mu.Lock()
 	if h.subs[userID] == nil {
-		h.subs[userID] = map[chan int64]struct{}{}
+		h.subs[userID] = map[*subscription]struct{}{}
 	}
-	h.subs[userID][ch] = struct{}{}
+	h.subs[userID][sub] = struct{}{}
 	h.mu.Unlock()
 
-	return ch, func() {
+	return sub.updates, sub.closed, func() {
 		h.mu.Lock()
-		delete(h.subs[userID], ch)
+		delete(h.subs[userID], sub)
 		if len(h.subs[userID]) == 0 {
 			delete(h.subs, userID)
 		}
@@ -36,11 +46,39 @@ func (h *Hub) Subscribe(userID string) (<-chan int64, func()) {
 func (h *Hub) Publish(userID string, version int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for ch := range h.subs[userID] {
+	for sub := range h.subs[userID] {
 		select {
-		case <-ch:
+		case <-sub.updates:
 		default:
 		}
-		ch <- version
+		sub.updates <- version
+	}
+}
+
+// Online reports which of a user's devices have a stream open right now.
+func (h *Hub) Online(userID string) map[string]bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	online := map[string]bool{}
+	for sub := range h.subs[userID] {
+		if sub.deviceID != "" {
+			online[sub.deviceID] = true
+		}
+	}
+	return online
+}
+
+// Disconnect ends a device's streams, so it reconnects and finds itself signed out.
+func (h *Hub) Disconnect(userID, deviceID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for sub := range h.subs[userID] {
+		if sub.deviceID == deviceID {
+			select {
+			case <-sub.closed:
+			default:
+				close(sub.closed)
+			}
+		}
 	}
 }

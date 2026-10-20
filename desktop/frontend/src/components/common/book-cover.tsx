@@ -25,7 +25,7 @@ export function BookCover({ book, className }: { book: Book; className?: string 
   return (
     <div className={cn("relative aspect-[2/3] overflow-hidden rounded-md bg-muted shadow-sm ring-1 ring-black/5 dark:ring-white/5", className)}>
       {url && !failed ? (
-        <img src={url} alt="" draggable={false} onError={() => setFailed(true)} className="size-full object-cover" />
+        <img src={url} alt="" draggable={false} onError={() => setFailed(true)} className="absolute inset-0 size-full object-cover" />
       ) : (
         <div
           className="flex size-full flex-col justify-between p-[9%] text-white"

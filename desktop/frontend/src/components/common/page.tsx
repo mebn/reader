@@ -1,18 +1,13 @@
 import { motion, type HTMLMotionProps } from "motion/react";
 import { cn } from "@/lib/utils";
 
-type Variant = "fade" | "slide" | "zoom";
+type Variant = "fade" | "zoom";
 
 const VARIANTS: Record<Variant, HTMLMotionProps<"div">> = {
   fade: {
     initial: { opacity: 0, scale: 1.015 },
     animate: { opacity: 1, scale: 1 },
     exit: { opacity: 0, scale: 0.985 },
-  },
-  slide: {
-    initial: { opacity: 0, x: 24 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: 24 },
   },
   zoom: {
     initial: { opacity: 0, scale: 0.97 },

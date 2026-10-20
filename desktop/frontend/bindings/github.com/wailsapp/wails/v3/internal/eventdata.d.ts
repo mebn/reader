@@ -12,7 +12,8 @@ import type * as files$0 from "../../../../mebn/reader/desktop/internal/files/mo
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
-            "files:dropped": files$0.DroppedFile[];
+            "files:dropped": files$0.DroppedFile[] | null;
+            "window:fullscreen": boolean;
         }
     }
 }

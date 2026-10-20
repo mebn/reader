@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WindowHeader } from "@/components/common/window-header";
 import { api } from "@/lib/api";
+import { platform } from "@/platform";
 import { DEFAULT_SERVER, useSession } from "@/store/session";
 
 type Mode = "signin" | "signup";
@@ -14,8 +15,6 @@ export function LoginPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState(previous?.email ?? "");
   const [password, setPassword] = useState("");
-  const [serverUrl, setServerUrl] = useState(previous?.serverUrl || DEFAULT_SERVER);
-  const [showServer, setShowServer] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -25,8 +24,8 @@ export function LoginPage() {
     setError("");
     try {
       const auth = mode === "signin" ? api.login : api.register;
-      const { token, user } = await auth(serverUrl, email, password);
-      await signIn({ serverUrl, token, email: user.email });
+      const { token, user } = await auth(DEFAULT_SERVER, email, password, await platform().device());
+      await signIn({ serverUrl: DEFAULT_SERVER, token, email: user.email });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -58,23 +57,13 @@ export function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <AnimatePresence initial={false}>
-            {showServer && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <Input placeholder="Server" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
-              </motion.div>
-            )}
-          </AnimatePresence>
           {error && <p className="text-center text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={busy} className="mt-1">
             {mode === "signin" ? "Sign in" : "Create account"}
           </Button>
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+          <div className="mt-2 flex justify-center text-xs text-muted-foreground">
             <button type="button" className="hover:text-foreground" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
               {mode === "signin" ? "Create account" : "I have an account"}
-            </button>
-            <button type="button" className="hover:text-foreground" onClick={() => setShowServer(!showServer)}>
-              Server
             </button>
           </div>
         </motion.form>

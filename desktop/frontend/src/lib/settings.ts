@@ -1,41 +1,74 @@
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface ReaderSettings {
-  theme: ThemeMode;
-  /** A background id, or "auto" to follow the theme. */
-  background: string;
+  /** Background ids for the page while the app is light and while it is dark. */
+  lightBackground: string;
+  darkBackground: string;
   font: string;
   fontSize: number;
   lineHeight: number;
   weight: number;
   tracking: number;
   paragraphSpacing: number;
-  margin: number;
+  /** Space beside the text on each side, as a percentage of the window's width; 0 is none. */
+  sideMargin: number;
   align: "left" | "justify";
   hyphenate: boolean;
   pages: 1 | 2;
+  /** What the header shows: in the toolbar, and above the text once the toolbar hides. */
+  headerTitle: boolean;
+  headerAuthor: boolean;
+  headerChapter: boolean;
+  headerClock: boolean;
+  /** What the line under the text shows. */
+  footerChapter: boolean;
+  footerChapterPages: boolean;
+  footerBookPages: boolean;
+  footerPercent: boolean;
 }
 
+export type LibraryTab = "all" | "books" | "highlights" | "notes" | "bookmarks";
+
+export const LIBRARY_TABS: [LibraryTab, string][] = [
+  ["all", "All"],
+  ["books", "Books"],
+  ["highlights", "Highlights"],
+  ["notes", "Notes"],
+  ["bookmarks", "Bookmarks"],
+];
+
 export interface AppSettings {
+  /** Light or dark for the whole app, the reader included. */
+  theme: ThemeMode;
   openInNewWindow: boolean;
+  /** The library tab shown when the app starts. */
+  defaultTab: LibraryTab;
 }
 
 export const DEFAULT_READER: ReaderSettings = {
-  theme: "system",
-  background: "auto",
+  lightBackground: "paper",
+  darkBackground: "night",
   font: "literata",
   fontSize: 19,
   lineHeight: 1.6,
   weight: 400,
   tracking: 0,
   paragraphSpacing: 0.6,
-  margin: 56,
+  sideMargin: 20,
   align: "justify",
   hyphenate: true,
   pages: 1,
+  headerTitle: true,
+  headerAuthor: false,
+  headerChapter: false,
+  headerClock: false,
+  footerChapter: false,
+  footerChapterPages: true,
+  footerBookPages: true,
+  footerPercent: false,
 };
 
-export const DEFAULT_APP: AppSettings = { openInNewWindow: false };
+export const DEFAULT_APP: AppSettings = { theme: "system", openInNewWindow: false, defaultTab: "all" };
 
 export const SCOPE = {
   app: "app",
@@ -88,14 +121,30 @@ export function resolveDark(mode: ThemeMode) {
 }
 
 export function resolveBackground(settings: ReaderSettings, dark: boolean): Background {
-  const picked = BACKGROUNDS.find((b) => b.id === settings.background);
-  return picked ?? BACKGROUNDS.find((b) => b.id === (dark ? "night" : "paper"))!;
+  const id = dark ? settings.darkBackground : settings.lightBackground;
+  return BACKGROUNDS.find((b) => b.id === id) ?? BACKGROUNDS.find((b) => b.id === (dark ? "night" : "paper"))!;
+}
+
+/**
+ * Older saved settings: one background for both modes, and a header that showed one
+ * thing ("title", "chapter" or "none") rather than a set of switches.
+ */
+function migrate(parsed: Record<string, unknown>) {
+  if (typeof parsed.header === "string" && !("headerTitle" in parsed)) {
+    parsed.headerTitle = parsed.header === "title";
+    parsed.headerChapter = parsed.header === "chapter";
+  }
+  const old = BACKGROUNDS.find((b) => b.id === parsed.background);
+  if (old && !("lightBackground" in parsed) && !("darkBackground" in parsed)) {
+    parsed[old.dark ? "darkBackground" : "lightBackground"] = old.id;
+  }
+  return parsed;
 }
 
 export function parseSettings<T>(data: string | undefined, defaults: T): Partial<T> {
   if (!data) return {};
   try {
-    const parsed = JSON.parse(data);
+    const parsed = migrate(JSON.parse(data));
     return Object.fromEntries(Object.entries(parsed).filter(([k]) => k in (defaults as object))) as Partial<T>;
   } catch {
     return {};
@@ -104,5 +153,5 @@ export function parseSettings<T>(data: string | undefined, defaults: T): Partial
 
 /** Settings that change the text layout, used to cache page counts. */
 export function layoutKey(s: ReaderSettings, width: number, height: number) {
-  return [s.font, s.fontSize, s.lineHeight, s.weight, s.tracking, s.paragraphSpacing, s.margin, s.align, s.hyphenate, s.pages, width, height].join("|");
+  return [s.font, s.fontSize, s.lineHeight, s.weight, s.tracking, s.paragraphSpacing, s.sideMargin, s.align, s.hyphenate, s.pages, width, height].join("|");
 }

@@ -2,39 +2,63 @@ import type { ReactNode } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BACKGROUNDS, FONTS, type ReaderSettings, type ThemeMode } from "@/lib/settings";
+import { BACKGROUNDS, FONTS, type ReaderSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
-interface ReaderSettingsFormProps {
+interface SectionProps {
   value: ReaderSettings;
   onChange(patch: Partial<ReaderSettings>): void;
 }
 
-export function ReaderSettingsForm({ value, onChange }: ReaderSettingsFormProps) {
+interface PageSectionProps extends SectionProps {
+  /** Which mode's page color is being edited. */
+  mode: "light" | "dark";
+  onModeChange(mode: "light" | "dark"): void;
+}
+
+/** Every reader setting, one section after another. */
+export function ReaderSettingsForm(props: PageSectionProps) {
+  return (
+    <div className="grid gap-8">
+      <PageSettings {...props} />
+      <TextSettings {...props} />
+      <LayoutSettings {...props} />
+      <HeaderFooterSettings {...props} />
+    </div>
+  );
+}
+
+export function PageSettings({ value, mode, onModeChange, onChange, title = "Page" }: PageSectionProps & { title?: string | null }) {
+  const backgroundKey = mode === "dark" ? "darkBackground" : "lightBackground";
   return (
     <div className="grid gap-5">
-      <Row label="Theme">
+      <SectionHeader label={title} />
+      <Row label="Mode">
         <Segmented
-          value={value.theme}
+          value={mode}
           options={[
             ["light", "Light"],
             ["dark", "Dark"],
-            ["system", "System"],
           ]}
-          onChange={(theme) => onChange({ theme: theme as ThemeMode })}
+          onChange={(m) => onModeChange(m as "light" | "dark")}
         />
       </Row>
-
-      <Row label="Page">
+      <Row label="Background">
         <div className="flex flex-wrap justify-end gap-1.5">
-          <Swatch selected={value.background === "auto"} onClick={() => onChange({ background: "auto" })} label="Auto" style={{ background: "linear-gradient(135deg, #fbfaf7 50%, #18181a 50%)" }} />
           {BACKGROUNDS.map((bg) => (
-            <Swatch key={bg.id} selected={value.background === bg.id} onClick={() => onChange({ background: bg.id })} label={bg.id} style={{ background: bg.color }} />
+            <Swatch key={bg.id} selected={value[backgroundKey] === bg.id} onClick={() => onChange({ [backgroundKey]: bg.id })} label={bg.id} style={{ background: bg.color }} />
           ))}
         </div>
       </Row>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-3 gap-1.5">
+export function TextSettings({ value, onChange, title = "Text" }: SectionProps & { title?: string | null }) {
+  return (
+    <div className="grid gap-5">
+      <SectionHeader label={title} />
+      <div className="-mt-2 grid grid-cols-3 gap-1.5">
         {FONTS.map((font) => (
           <button
             key={font.id}
@@ -52,14 +76,20 @@ export function ReaderSettingsForm({ value, onChange }: ReaderSettingsFormProps)
           </button>
         ))}
       </div>
-
       <Range label="Size" value={value.fontSize} min={12} max={34} step={1} format={(v) => `${v}`} onChange={(fontSize) => onChange({ fontSize })} />
       <Range label="Line height" value={value.lineHeight} min={1.1} max={2.4} step={0.05} format={(v) => v.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })} />
-      <Range label="Margins" value={value.margin} min={12} max={140} step={4} format={(v) => `${v}`} onChange={(margin) => onChange({ margin })} />
       <Range label="Weight" value={value.weight} min={300} max={700} step={50} format={(v) => `${v}`} onChange={(weight) => onChange({ weight })} />
       <Range label="Spacing" value={value.tracking} min={-0.03} max={0.12} step={0.005} format={(v) => (v * 100).toFixed(1)} onChange={(tracking) => onChange({ tracking })} />
-      <Range label="Paragraphs" value={value.paragraphSpacing} min={0} max={2} step={0.1} format={(v) => v.toFixed(1)} onChange={(paragraphSpacing) => onChange({ paragraphSpacing })} />
+    </div>
+  );
+}
 
+export function LayoutSettings({ value, onChange, title = "Layout" }: SectionProps & { title?: string | null }) {
+  return (
+    <div className="grid gap-5">
+      <SectionHeader label={title} />
+      <Range label="Margins" value={value.sideMargin} min={0} max={40} step={1} format={(v) => (v ? `${v}%` : "None")} onChange={(sideMargin) => onChange({ sideMargin })} />
+      <Range label="Paragraphs" value={value.paragraphSpacing} min={0} max={2} step={0.1} format={(v) => v.toFixed(1)} onChange={(paragraphSpacing) => onChange({ paragraphSpacing })} />
       <Row label="Align">
         <Segmented
           value={value.align}
@@ -70,7 +100,6 @@ export function ReaderSettingsForm({ value, onChange }: ReaderSettingsFormProps)
           onChange={(align) => onChange({ align: align as ReaderSettings["align"] })}
         />
       </Row>
-
       <Row label="Pages">
         <Segmented
           value={String(value.pages)}
@@ -81,10 +110,50 @@ export function ReaderSettingsForm({ value, onChange }: ReaderSettingsFormProps)
           onChange={(pages) => onChange({ pages: Number(pages) as 1 | 2 })}
         />
       </Row>
-
       <Row label="Hyphenation">
         <Switch checked={value.hyphenate} onCheckedChange={(hyphenate) => onChange({ hyphenate })} />
       </Row>
+    </div>
+  );
+}
+
+export function HeaderFooterSettings({ value, onChange, title = "Header & footer" }: SectionProps & { title?: string | null }) {
+  return (
+    <div className="grid gap-5">
+      <SectionHeader label={title} />
+      <div className="grid gap-3">
+        <span className="text-[13px] text-muted-foreground">Header</span>
+        <Toggle label="Book title" checked={value.headerTitle} onChange={(headerTitle) => onChange({ headerTitle })} />
+        <Toggle label="Author" checked={value.headerAuthor} onChange={(headerAuthor) => onChange({ headerAuthor })} />
+        <Toggle label="Chapter title" checked={value.headerChapter} onChange={(headerChapter) => onChange({ headerChapter })} />
+        <Toggle label="Clock" checked={value.headerClock} onChange={(headerClock) => onChange({ headerClock })} />
+      </div>
+      <div className="grid gap-3">
+        <span className="text-[13px] text-muted-foreground">Footer</span>
+        <Toggle label="Chapter title" checked={value.footerChapter} onChange={(footerChapter) => onChange({ footerChapter })} />
+        <Toggle label="Page in chapter" checked={value.footerChapterPages} onChange={(footerChapterPages) => onChange({ footerChapterPages })} />
+        <Toggle label="Page in book" checked={value.footerBookPages} onChange={(footerBookPages) => onChange({ footerBookPages })} />
+        <Toggle label="Percent read" checked={value.footerPercent} onChange={(footerPercent) => onChange({ footerPercent })} />
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange(checked: boolean): void }) {
+  return (
+    <label className="flex items-center justify-between gap-4 pl-3">
+      <span className="text-[13px]">{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+/** A section's name; none in a tab, which already says it. */
+function SectionHeader({ label }: { label: string | null }) {
+  if (!label) return null;
+  return (
+    <div className="-mb-2 flex h-6 items-center">
+      <span className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">{label}</span>
     </div>
   );
 }

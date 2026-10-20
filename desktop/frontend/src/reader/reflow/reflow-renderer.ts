@@ -2,13 +2,15 @@ import type { Annotation, Locator } from "@/lib/types";
 import { fontFamily, layoutKey } from "@/lib/settings";
 import type { ReflowDocument, TocEntry } from "../formats";
 import { cloneWithCanvases } from "../page-turn";
-import { highlightAttrs, offsetsToRange, rangeToOffsets, unwrapMarks, wrapOffsets } from "../text-ranges";
+import { HighlightLayer } from "../highlight-layer";
+import { offsetsToRange, rangeToOffsets } from "../text-ranges";
 import type { Appearance, Position, Renderer, RendererEvents, TextSelection } from "../types";
 
-const MAX_COLUMN = 680;
 const PAD_TOP = 52;
 const PAD_BOTTOM = 52;
 const IMAGE_TIMEOUT = 1500;
+/** Numbering the whole book's pages waits until the layout has settled, such as after a resize. */
+const PAGINATE_DELAY = 300;
 
 /** Page counts per layout, shared across books opened in this window. */
 const pageCountCache = new Map<string, number[]>();
@@ -30,6 +32,7 @@ export class ReflowRenderer implements Renderer {
   private viewport = document.createElement("div");
   private content = document.createElement("div");
   private measurer = document.createElement("div");
+  private highlights = new HighlightLayer();
 
   private appearance!: Appearance;
   private geometry: Geometry = { column: 0, gap: 0, height: 0, span: 1 };
@@ -38,6 +41,7 @@ export class ReflowRenderer implements Renderer {
   private chapterPages = 1;
   private bookPages: number[] | null = null;
   private paginateToken = 0;
+  private paginateTimer = 0;
   private annotations: Annotation[] = [];
 
   constructor(
@@ -52,10 +56,14 @@ export class ReflowRenderer implements Renderer {
     this.content.lang = this.measurer.lang = doc.metadata.language || "en";
     Object.assign(this.measurer.style, { position: "fixed", left: "-100000px", top: "0", visibility: "hidden", pointerEvents: "none" });
 
-    this.viewport.appendChild(this.content);
+    // Highlights paint behind the text: the layer comes first and the text is positioned,
+    // so it stacks above.
+    this.content.style.position = "relative";
+    this.viewport.append(this.highlights.el, this.content);
     this.sheet.appendChild(this.viewport);
     container.append(this.sheet, this.measurer);
     this.content.addEventListener("click", this.onClick);
+    this.content.addEventListener("pointermove", this.onPointerMove);
   }
 
   get position(): Position {
@@ -69,9 +77,15 @@ export class ReflowRenderer implements Renderer {
       chapterCount: this.doc.chapterCount,
       page,
       pageCount: total,
+      chapterPage: this.page + 1,
+      chapterPageCount: this.chapterPages,
       percent: total && page ? Math.min(1, (page + this.geometry.span - 1) / total) : (this.chapter + fraction) / this.doc.chapterCount,
       locator,
     };
+  }
+
+  get spread() {
+    return this.geometry.span === 2;
   }
 
   async setAppearance(appearance: Appearance) {
@@ -155,7 +169,9 @@ export class ReflowRenderer implements Renderer {
 
   destroy() {
     this.paginateToken++;
+    clearTimeout(this.paginateTimer);
     this.content.removeEventListener("click", this.onClick);
+    this.content.removeEventListener("pointermove", this.onPointerMove);
     this.sheet.remove();
     this.measurer.remove();
   }
@@ -172,21 +188,27 @@ export class ReflowRenderer implements Renderer {
       this.chapterPages = this.countPages(this.content);
       this.page = this.alignPage(Math.floor(fraction * this.chapterPages + 1e-6));
       this.applyTransform();
+      this.paintHighlights();
     }
     this.bookPages = pageCountCache.get(this.cacheKey()) ?? null;
     this.emit();
-    if (!this.bookPages) void this.paginate();
+    // Stop any count for an older layout now; start a fresh one once resizing settles.
+    this.paginateToken++;
+    clearTimeout(this.paginateTimer);
+    if (!this.bookPages) this.paginateTimer = window.setTimeout(() => void this.paginate(), PAGINATE_DELAY);
   }
 
   private computeGeometry(): Geometry {
     const { settings } = this.appearance;
     const width = this.container.clientWidth;
     const height = Math.max(120, this.container.clientHeight - PAD_TOP - PAD_BOTTOM);
-    const margin = Math.min(settings.margin, width / 8);
+    const margin = Math.round((width * settings.sideMargin) / 100);
     const span: 1 | 2 = settings.pages === 2 && width > 760 ? 2 : 1;
-    const gap = margin * 2;
     const available = width - margin * 2;
-    const column = span === 2 ? Math.floor((available - gap) / 2) : Math.min(MAX_COLUMN, Math.floor(available));
+    // Facing pages keep a gap of their own, even with no margins. With one page the gap
+    // only spaces the hidden neighbouring pages in the strip.
+    const gap = span === 2 ? Math.round(Math.min(96, Math.max(40, width * 0.05))) : Math.max(margin * 2, 40);
+    const column = Math.floor(span === 2 ? (available - gap) / 2 : available);
 
     const visible = span === 2 ? column * 2 + gap : column;
     Object.assign(this.viewport.style, {
@@ -225,7 +247,7 @@ export class ReflowRenderer implements Renderer {
 
   private applyTransform() {
     const stride = this.geometry.column + this.geometry.gap;
-    this.content.style.transform = `translate3d(${-this.page * stride}px, 0, 0)`;
+    this.content.style.transform = this.highlights.el.style.transform = `translate3d(${-this.page * stride}px, 0, 0)`;
   }
 
   private countPages(el: HTMLElement) {
@@ -263,7 +285,7 @@ export class ReflowRenderer implements Renderer {
   private async renderChapter(index: number) {
     const fragment = await this.doc.loadChapter(index);
     this.chapter = index;
-    this.content.style.transform = "";
+    this.content.style.transform = this.highlights.el.style.transform = "";
     this.content.replaceChildren(fragment);
     await waitForImages(this.content);
     this.paintHighlights();
@@ -295,25 +317,36 @@ export class ReflowRenderer implements Renderer {
   }
 
   private paintHighlights() {
-    unwrapMarks(this.content);
+    const spans = [];
     for (const a of this.annotations) {
       if (a.kind !== "highlight") continue;
       const loc = JSON.parse(a.locator) as Locator;
       if (loc.chapter !== this.chapter || loc.start === undefined || loc.end === undefined) continue;
-      wrapOffsets(this.content, loc.start, loc.end, highlightAttrs(a.id, a.color, a.note));
+      spans.push({ id: a.id, start: loc.start, end: loc.end, color: a.color, note: Boolean(a.note) });
     }
+    this.highlights.paint(this.content, spans);
   }
+
+  annotationAt(x: number, y: number) {
+    return this.highlights.hit(this.content, x, y);
+  }
+
+  // Highlights don't receive pointer events, so show they're clickable by hand.
+  private onPointerMove = (e: PointerEvent) => {
+    this.content.style.cursor = this.annotationAt(e.clientX, e.clientY) ? "pointer" : "";
+  };
 
   private emit() {
     this.events.onChange(this.position);
   }
 
   private onClick = (e: MouseEvent) => {
+    if (!this.events.canInteract()) return;
     const target = e.target as HTMLElement;
-    const mark = target.closest("mark[data-annotation]");
-    if (mark && getSelection()?.isCollapsed) {
+    const hit = this.annotationAt(e.clientX, e.clientY);
+    if (hit && getSelection()?.isCollapsed) {
       e.stopPropagation();
-      this.events.onAnnotationClick(mark.getAttribute("data-annotation")!, mark.getBoundingClientRect());
+      this.events.onAnnotationClick(hit.id, hit.rect);
       return;
     }
     const link = target.closest("a[data-href], a[data-external]");

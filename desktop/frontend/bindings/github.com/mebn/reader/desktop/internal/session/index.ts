@@ -6,6 +6,6 @@ export {
     Service
 };
 
-export {
+export type {
     Session
 } from "./models.js";

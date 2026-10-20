@@ -40,6 +40,9 @@ wails3 build      # production build in desktop/bin
 
 The frontend also runs in a plain browser for quick UI work: `cd desktop/frontend && npm run dev`.
 
+The app talks to the server at `VITE_SERVER_URL`, set when building (default
+`http://localhost:8080`), e.g. `VITE_SERVER_URL=https://reader.example.com wails3 build`.
+
 ## How sync works
 
 Every record (folders, books, progress, annotations, settings) carries a client

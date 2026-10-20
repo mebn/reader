@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "./reader/fixed/text-layer.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -92,6 +93,56 @@
     user-select: text;
     -webkit-user-select: text;
   }
+
+/* No focus rings at all: neither WebKit's outline nor the components' ring shadows,
+   which also appear when a dialog moves focus to its first button. */
+:focus,
+:focus-visible {
+  outline: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+  /* Cursors say what a thing does: a hand on anything clickable, the I-beam where
+     text can be typed or selected, the arrow everywhere else. */
+  a,
+  button,
+  summary,
+  select,
+  label:has(input, button, [role="switch"]),
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [role="switch"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"] {
+    cursor: pointer;
+  }
+  [role="slider"] {
+    cursor: grab;
+  }
+  [role="slider"]:active {
+    cursor: grabbing;
+  }
+  input:not([type="checkbox"], [type="radio"], [type="range"]),
+  textarea,
+  [contenteditable="true"] {
+    cursor: text;
+  }
+  :disabled,
+  [data-disabled] {
+    cursor: default;
+  }
+}
+
+/* While a book or folder is being moved, the hand holds it everywhere. */
+html.dragging-item,
+html.dragging-item * {
+  cursor: grabbing !important;
+}
+html.dragging-item [data-slot="hover-card-content"] {
+  display: none;
 }
 
 /* Window chrome: the header doubles as the title bar on macOS. */
@@ -104,8 +155,13 @@
 .drag-region [role="menu"] {
   --wails-draggable: no-drag;
 }
-html[data-platform="darwin"] .traffic-light-inset {
-  padding-left: 80px;
+/* Headers are tall enough that their contents center on the macOS traffic lights,
+   which sit about 27px down from the top of a hidden-inset title bar. */
+:root {
+  --titlebar-height: 54px;
+}
+html[data-platform="darwin"]:not(.fullscreen) .traffic-light-inset {
+  padding-left: 96px;
 }
 
 /* Wails marks elements with data-file-drop-target while files hover them. */

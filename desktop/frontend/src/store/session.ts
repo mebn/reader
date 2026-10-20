@@ -7,7 +7,8 @@ interface SessionState {
   signOut(): Promise<void>;
 }
 
-export const DEFAULT_SERVER = "http://localhost:8080";
+/** The sync server, fixed at build time (VITE_SERVER_URL); never shown to people. */
+export const DEFAULT_SERVER = import.meta.env.VITE_SERVER_URL || "http://localhost:8080";
 
 export const useSession = create<SessionState>()((set) => ({
   session: null,

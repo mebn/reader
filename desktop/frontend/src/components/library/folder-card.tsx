@@ -8,7 +8,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { deleteFolder, moveFolder, renameFolder } from "@/lib/actions";
 import type { Book, Folder } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { moveItem, startDrag, useDropTarget } from "./drag";
+import { dragSource, moveItem, useDropTarget } from "./drag";
 import { MoveToMenu } from "./move-to-menu";
 
 /** Up to three covers fanned out like a small stack. */
@@ -32,13 +32,13 @@ export function FolderCard({ folder, books }: { folder: Folder; books: Book[] })
           <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.3 }}>
             <button
               type="button"
-              draggable
-              onDragStart={(e) => startDrag(e, { kind: "folder", id: folder.id })}
+              {...dragSource({ kind: "folder", id: folder.id })}
               onClick={() => navigate(`/folder/${folder.id}`)}
               className="group block w-full text-left outline-none"
               {...drop.props}
             >
               <div
+                data-drag-image
                 className={cn(
                   "relative flex aspect-[2/3] items-center justify-center overflow-hidden rounded-md bg-muted/70 ring-1 ring-black/5 transition-all duration-300 group-hover:-translate-y-1 group-hover:bg-muted dark:ring-white/5",
                   drop.over && "scale-[1.03] bg-accent ring-2 ring-ring",

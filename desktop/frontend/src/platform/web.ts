@@ -8,6 +8,12 @@ export function createWebPlatform(): Platform {
     os: navigator.platform.toLowerCase().includes("mac") ? "darwin" : "web",
     standalone: location.hash.startsWith("#/window/"),
 
+    async device() {
+      const ua = navigator.userAgent;
+      const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser";
+      return { name: `${browser} on the web`, platform: "Web" };
+    },
+
     async loadSession() {
       const raw = localStorage.getItem(SESSION_KEY);
       return raw ? (JSON.parse(raw) as Session) : null;
@@ -38,6 +44,7 @@ export function createWebPlatform(): Platform {
       return false;
     },
     setTitle: (title) => void (document.title = title),
+    setWindowButtonsVisible: () => {},
     openUrl: (url) => void window.open(url, "_blank", "noopener"),
     closeWindow: () => window.close(),
 

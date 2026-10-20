@@ -21,8 +21,11 @@ func NewRouter(h *handlers.Handler, tokens *auth.Tokens) *gin.Engine {
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
 
-	authed := api.Group("", tokens.Middleware())
+	authed := api.Group("", tokens.Middleware(h.CheckDevice))
 	authed.GET("/me", h.Me)
+	authed.POST("/auth/device", h.RegisterDevice)
+	authed.GET("/devices", h.Devices)
+	authed.DELETE("/devices/:id", h.DeleteDevice)
 	authed.GET("/sync", h.Sync)
 	authed.GET("/events", h.Events)
 
