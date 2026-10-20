@@ -1,4 +1,4 @@
-# Server data (database and uploaded books)
-server/data/
+# Backend data (database and uploaded books)
+backend/data/
 
 .DS_Store
