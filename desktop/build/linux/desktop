@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Reader
+Comment=A calm, synced ebook reader
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/Reader %u
+Terminal=false
+Type=Application
+Icon=Reader
+Categories=Utility;
+StartupWMClass=Reader
+
+ 

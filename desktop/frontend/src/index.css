@@ -1,0 +1,248 @@
+@import "tailwindcss";
+@import "./reader/fixed/text-layer.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 75);
+  --foreground: oklch(0.2 0.01 60);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.01 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.01 60);
+  --primary: oklch(0.24 0.012 60);
+  --primary-foreground: oklch(0.985 0.002 75);
+  --secondary: oklch(0.955 0.004 75);
+  --secondary-foreground: oklch(0.24 0.012 60);
+  --muted: oklch(0.955 0.004 75);
+  --muted-foreground: oklch(0.55 0.012 60);
+  --accent: oklch(0.945 0.005 75);
+  --accent-foreground: oklch(0.24 0.012 60);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.91 0.005 75);
+  --input: oklch(0.91 0.005 75);
+  --ring: oklch(0.7 0.01 60);
+}
+
+.dark {
+  --background: oklch(0.17 0.004 60);
+  --foreground: oklch(0.93 0.004 75);
+  --card: oklch(0.21 0.005 60);
+  --card-foreground: oklch(0.93 0.004 75);
+  --popover: oklch(0.22 0.005 60);
+  --popover-foreground: oklch(0.93 0.004 75);
+  --primary: oklch(0.93 0.004 75);
+  --primary-foreground: oklch(0.2 0.006 60);
+  --secondary: oklch(0.26 0.006 60);
+  --secondary-foreground: oklch(0.93 0.004 75);
+  --muted: oklch(0.26 0.006 60);
+  --muted-foreground: oklch(0.66 0.01 60);
+  --accent: oklch(0.27 0.006 60);
+  --accent-foreground: oklch(0.93 0.004 75);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.55 0.01 60);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+/* Window chrome: the header doubles as the title bar on macOS. */
+.drag-region {
+  --wails-draggable: drag;
+}
+.drag-region button,
+.drag-region a,
+.drag-region input,
+.drag-region [role="menu"] {
+  --wails-draggable: no-drag;
+}
+html[data-platform="darwin"] .traffic-light-inset {
+  padding-left: 80px;
+}
+
+/* Wails marks elements with data-file-drop-target while files hover them. */
+.file-drop-target-active .drop-overlay {
+  opacity: 1;
+}
+
+/* Reflowable book content. Layout values come from CSS variables set by the renderer. */
+.book-content {
+  font-family: var(--reader-font);
+  font-size: var(--reader-size);
+  line-height: var(--reader-leading);
+  text-align: var(--reader-align);
+  hyphens: var(--reader-hyphens);
+  -webkit-hyphens: var(--reader-hyphens);
+  color: var(--reader-text);
+  font-weight: var(--reader-weight);
+  letter-spacing: var(--reader-tracking);
+  word-wrap: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  font-variant-ligatures: common-ligatures;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+
+  & * {
+    max-width: 100%;
+  }
+  & p {
+    margin: 0 0 var(--reader-paragraph);
+    orphans: 2;
+    widows: 2;
+  }
+  & h1,
+  & h2,
+  & h3,
+  & h4,
+  & h5,
+  & h6 {
+    line-height: 1.25;
+    margin: 1.4em 0 0.7em;
+    text-align: left;
+    font-weight: 600;
+    break-after: avoid;
+    hyphens: manual;
+  }
+  & h1 { font-size: 1.6em; }
+  & h2 { font-size: 1.35em; }
+  & h3 { font-size: 1.15em; }
+  & h4, & h5, & h6 { font-size: 1em; }
+  & img,
+  & svg {
+    display: block;
+    height: auto;
+    max-height: calc(var(--reader-page-height) - 2em);
+    margin: 0.8em auto;
+    object-fit: contain;
+    break-inside: avoid;
+  }
+  & a {
+    color: inherit;
+    text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+    text-underline-offset: 0.18em;
+  }
+  & a[data-href],
+  & a[data-external] {
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  & blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 2px solid color-mix(in oklab, currentColor 20%, transparent);
+    opacity: 0.9;
+  }
+  & ul,
+  & ol {
+    margin: 0 0 1em;
+    padding-left: 1.4em;
+  }
+  & ul { list-style: disc; }
+  & ol { list-style: decimal; }
+  & hr {
+    border: 0;
+    border-top: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+    margin: 1.5em 20%;
+  }
+  & pre,
+  & code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.88em;
+    white-space: pre-wrap;
+  }
+  & table {
+    border-collapse: collapse;
+    font-size: 0.92em;
+  }
+  & td,
+  & th {
+    padding: 0.25em 0.5em;
+    border: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+  }
+  & sup,
+  & sub {
+    font-size: 0.7em;
+    line-height: 0;
+  }
+}
+
+/* Highlights in both reflowable text and PDF text layers. */
+mark[data-annotation] {
+  color: inherit;
+  border-radius: 2px;
+  cursor: pointer;
+  background: color-mix(in oklab, var(--mark) 45%, transparent);
+  transition: background 150ms;
+}
+mark[data-annotation][data-note]::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 2px;
+  vertical-align: super;
+  border-radius: 999px;
+  background: var(--mark);
+}
+.textLayer mark[data-annotation] {
+  color: transparent;
+  background: color-mix(in oklab, var(--mark) 40%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

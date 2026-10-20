@@ -1,0 +1,4 @@
+# Server data (database and uploaded books)
+server/data/
+
+.DS_Store
