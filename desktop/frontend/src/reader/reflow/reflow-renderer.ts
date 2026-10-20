@@ -161,6 +161,17 @@ export class ReflowRenderer implements Renderer {
     return { locator: { chapter: this.chapter, ...offsets }, text, rect: range.getBoundingClientRect() };
   }
 
+  pageOf(locator: Locator) {
+    if (!this.bookPages) return null;
+    const chapter = clamp(locator.chapter ?? 0, 0, this.bookPages.length - 1);
+    const before = this.bookPages.slice(0, chapter).reduce((a, b) => a + b, 0);
+    const inChapter =
+      chapter === this.chapter && locator.start !== undefined
+        ? this.pageOfOffset(locator.start)
+        : Math.floor((locator.fraction ?? 0) * this.bookPages[chapter] + 1e-6);
+    return before + clamp(inChapter, 0, this.bookPages[chapter] - 1) + 1;
+  }
+
   isVisible(locator: Locator) {
     if (locator.chapter !== this.chapter) return false;
     const page = locator.start !== undefined ? this.pageOfOffset(locator.start) : Math.floor((locator.fraction ?? 0) * this.chapterPages + 1e-6);

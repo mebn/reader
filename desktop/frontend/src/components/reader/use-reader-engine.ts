@@ -150,7 +150,8 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
         const locator = JSON.parse(remote.locator) as Locator;
         if (renderer.current.isVisible(locator)) return;
         lastSaved.current = { locator: remote.locator, at: remote.modifiedAt };
-        toast(`Continue at ${Math.round(remote.percent * 100)}%?`, {
+        const page = renderer.current.pageOf(locator);
+        toast(page ? `Continue on page ${page}?` : `Continue at ${Math.round(remote.percent * 100)}%?`, {
           description: "You read further on another device.",
           action: { label: "Go", onClick: () => void renderer.current?.goTo(locator) },
           duration: 10_000,

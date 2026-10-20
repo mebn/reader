@@ -63,6 +63,8 @@ export interface Renderer {
   annotationAt(x: number, y: number): { id: string; rect: DOMRect } | null;
   /** Whether a locator is visible on the current page(s). */
   isVisible(locator: Locator): boolean;
+  /** The 1-based book page a locator falls on, or null while pages are still being counted. */
+  pageOf(locator: Locator): number | null;
 
   destroy(): void;
 }

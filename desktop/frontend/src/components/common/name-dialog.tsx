@@ -27,7 +27,7 @@ export function NameDialog({ open, title, initial = "", action, onSubmit, onOpen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+      <DialogContent className="max-w-[min(24rem,calc(100%-2rem))] sm:max-w-sm" showCloseButton={false}>
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

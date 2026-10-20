@@ -125,6 +125,10 @@ export class FixedRenderer implements Renderer {
     return mark && this.sheet.contains(mark) ? { id: mark.dataset.annotation!, rect: mark.getBoundingClientRect() } : null;
   }
 
+  pageOf(locator: Locator) {
+    return (locator.page ?? 0) + 1;
+  }
+
   isVisible(locator: Locator) {
     const page = locator.page ?? -1;
     return page >= this.page && page < this.page + this.span;

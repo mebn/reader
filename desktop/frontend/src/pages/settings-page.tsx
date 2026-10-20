@@ -53,15 +53,16 @@ export function SettingsPage() {
         }
         center="Settings"
       />
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-48 shrink-0 space-y-0.5 px-3 pt-2">
+      {/* On narrow windows the sidebar becomes a row of tabs above the content. */}
+      <div className="flex min-h-0 flex-1 max-[640px]:flex-col">
+        <nav className="w-48 shrink-0 space-y-0.5 px-3 pt-2 max-[640px]:flex max-[640px]:w-full max-[640px]:gap-1 max-[640px]:space-y-0 max-[640px]:overflow-x-auto max-[640px]:border-b max-[640px]:pb-2">
           {PANES.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => setPane(id)}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
+                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm whitespace-nowrap transition-colors max-[640px]:w-auto max-[640px]:shrink-0 max-[640px]:px-2.5 max-[640px]:[&>svg]:hidden",
                 pane === id ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
             >
@@ -70,7 +71,7 @@ export function SettingsPage() {
             </button>
           ))}
         </nav>
-        <div className="min-w-0 flex-1 border-l">{pane === "appearance" ? <AppearancePane /> : pane === "reading" ? <ReadingPane /> : pane === "shortcuts" ? <ShortcutsPane /> : <AccountPane />}</div>
+        <div className="min-h-0 min-w-0 flex-1 border-l max-[640px]:border-l-0">{pane === "appearance" ? <AppearancePane /> : pane === "reading" ? <ReadingPane /> : pane === "shortcuts" ? <ShortcutsPane /> : <AccountPane />}</div>
       </div>
     </Page>
   );
@@ -88,7 +89,7 @@ function AppearancePane() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="grid max-w-xl gap-10 px-8 pt-4 pb-16">
+      <div className="grid max-w-xl gap-10 px-8 pt-4 pb-16 max-[640px]:px-4">
         <Section title="Theme">
           <div className="grid grid-cols-3 gap-3">
             {THEMES.map(({ id, label, icon: Icon }) => (
@@ -184,7 +185,7 @@ function ReadingPane() {
     // The preview sits right beside the form rather than at the far edge of wide windows.
     <div className="grid h-full md:grid-cols-[minmax(0,36rem)_320px]">
       <ScrollArea className="min-h-0">
-        <div className="grid content-start gap-10 px-8 pt-4 pb-16">
+        <div className="grid content-start gap-10 px-8 pt-4 pb-16 max-[640px]:px-4">
           <Section title="Reading">
             <ReaderSettingsForm
               value={draft}
@@ -216,7 +217,7 @@ function ReadingPane() {
 function ShortcutsPane() {
   return (
     <ScrollArea className="h-full">
-      <div className="max-w-3xl px-8 pt-4 pb-16">
+      <div className="max-w-3xl px-8 pt-4 pb-16 max-[640px]:px-4">
         <Section title="Keyboard shortcuts">
           <ShortcutList />
         </Section>
@@ -233,7 +234,7 @@ function AccountPane() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="grid max-w-xl gap-10 px-8 pt-4 pb-16">
+      <div className="grid max-w-xl gap-10 px-8 pt-4 pb-16 max-[640px]:px-4">
         <Section title="Account">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
