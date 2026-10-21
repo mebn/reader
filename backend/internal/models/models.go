@@ -6,6 +6,7 @@ type User struct {
 	ID           string    `gorm:"primaryKey;size:36" json:"id"`
 	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash string    `gorm:"not null" json:"-"`
+	GoogleID     *string   `gorm:"uniqueIndex" json:"-"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 

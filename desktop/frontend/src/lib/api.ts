@@ -48,6 +48,20 @@ export const api = {
     request<{ token: string; user: User }>({ serverUrl, token: "" }, "POST", "/auth/register", { email, password, device }),
 
   /** Swaps a token from before devices were tracked for one bound to this device. */
+  /** Starts Google sign-in: open `url` in the browser, then poll with `state` and `secret`. */
+  googleStart: (serverUrl: string, device: DeviceInfo) =>
+    request<{ url: string; state: string; secret: string }>({ serverUrl, token: "" }, "POST", "/auth/google/start", { device }),
+
+  /** The session once the person has signed in with Google; null while they haven't. */
+  googlePoll: async (serverUrl: string, state: string, secret: string) => {
+    const res = await request<{ token: string; user: User } | { status: "pending" }>(
+      { serverUrl, token: "" },
+      "GET",
+      `/auth/google/poll?state=${encodeURIComponent(state)}&secret=${encodeURIComponent(secret)}`,
+    );
+    return "token" in res ? res : null;
+  },
+
   registerDevice: (s: Session, device: DeviceInfo) => request<{ token: string; user: User }>(s, "POST", "/auth/device", device),
   devices: (s: Session) => request<Device[]>(s, "GET", "/devices"),
   removeDevice: (s: Session, id: string) => request<void>(s, "DELETE", `/devices/${id}`),

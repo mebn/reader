@@ -20,6 +20,7 @@ type Handler struct {
 	hub    *events.Hub
 	tokens *auth.Tokens
 	clock  *clock
+	google *googleAuth
 
 	// writeMu serialises writes so a sync cursor never skips an uncommitted version.
 	writeMu sync.Mutex
@@ -43,12 +44,12 @@ func (h *Handler) cursor() int64 {
 	return h.clock.Current()
 }
 
-func New(db *gorm.DB, store *storage.Store, hub *events.Hub, tokens *auth.Tokens) (*Handler, error) {
+func New(db *gorm.DB, store *storage.Store, hub *events.Hub, tokens *auth.Tokens, google GoogleConfig) (*Handler, error) {
 	c, err := newClock(db)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{db: db, store: store, hub: hub, tokens: tokens, clock: c}, nil
+	return &Handler{db: db, store: store, hub: hub, tokens: tokens, clock: c, google: newGoogleAuth(google)}, nil
 }
 
 // clock hands out strictly increasing versions used as the sync cursor.

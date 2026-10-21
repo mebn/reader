@@ -6,7 +6,7 @@ import { moveItem, useDropTarget } from "./drag";
 
 function Crumb({ folder, current }: { folder: Folder | null; current: boolean }) {
   const drop = useDropTarget((item) => moveItem(item, folder?.id ?? null));
-  const label = folder?.name ?? "Library";
+  const label = folder?.name ?? "Reader";
   const className = cn(
     "truncate rounded-md px-1.5 py-0.5 text-[15px] transition-colors",
     current ? "font-semibold" : "text-muted-foreground hover:text-foreground",
@@ -21,7 +21,7 @@ function Crumb({ folder, current }: { folder: Folder | null; current: boolean })
   );
 }
 
-/** Library › Folder › Subfolder. Crumbs accept dropped books and folders. */
+/** Reader › Folder › Subfolder. Crumbs accept dropped books and folders. */
 export function Breadcrumbs({ path }: { path: Folder[] }) {
   const crumbs: (Folder | null)[] = [null, ...path];
   return (

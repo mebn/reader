@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/mebn/reader/backend/internal/auth"
 	"github.com/mebn/reader/backend/internal/config"
@@ -25,7 +26,11 @@ func main() {
 	}
 
 	tokens := auth.NewTokens(cfg.JWTSecret)
-	h, err := handlers.New(db, store, events.NewHub(), tokens)
+	h, err := handlers.New(db, store, events.NewHub(), tokens, handlers.GoogleConfig{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  strings.TrimRight(cfg.PublicURL, "/") + "/api/auth/google/callback",
+	})
 	if err != nil {
 		log.Fatalf("init handlers: %v", err)
 	}

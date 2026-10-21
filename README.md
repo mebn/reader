@@ -30,6 +30,21 @@ go run ./cmd/server
 | `READER_DATA_DIR`   | `./data`               |
 | `READER_JWT_SECRET` | `dev-secret-change-me` |
 
+Sign in with Google is offered once the server has an OAuth client (Google Cloud console →
+APIs & Services → Credentials → OAuth client ID, type *Web application*). Add
+`<READER_PUBLIC_URL>/api/auth/google/callback` as an authorised redirect URI, e.g.
+`http://localhost:8080/api/auth/google/callback` while developing.
+
+| Variable                     | Default                | |
+| ---------------------------- | ---------------------- | - |
+| `READER_GOOGLE_CLIENT_ID`    |                        | OAuth client id |
+| `READER_GOOGLE_CLIENT_SECRET`|                        | OAuth client secret |
+| `READER_PUBLIC_URL`          | `http://localhost` + `READER_ADDR` | where Google sends the browser back to |
+
+The app opens Google in the system browser and the server finishes the sign-in (authorisation
+code with PKCE, ID token verified with `coreos/go-oidc`), so the secret never leaves the server.
+An existing account with the same verified email is linked; otherwise one is created.
+
 Desktop (needs Go 1.25+, Node 20+ and the [Wails v3 CLI](https://v3.wails.io)):
 
 ```sh

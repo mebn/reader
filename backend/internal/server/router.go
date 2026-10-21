@@ -20,6 +20,9 @@ func NewRouter(h *handlers.Handler, tokens *auth.Tokens) *gin.Engine {
 	api := r.Group("/api")
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
+	api.POST("/auth/google/start", h.GoogleStart)
+	api.GET("/auth/google/callback", h.GoogleCallback)
+	api.GET("/auth/google/poll", h.GooglePoll)
 
 	authed := api.Group("", tokens.Middleware(h.CheckDevice))
 	authed.GET("/me", h.Me)

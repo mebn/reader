@@ -99,6 +99,16 @@ func (h *Handler) Me(c *gin.Context) {
 
 // respondSession registers the signing-in device and answers with a token bound to it.
 func (h *Handler) respondSession(c *gin.Context, status int, user models.User, info deviceInfo) {
+	s, err := h.newSession(user, info)
+	if err != nil {
+		serverError(c, err)
+		return
+	}
+	c.JSON(status, s)
+}
+
+// newSession registers the signing-in device and signs a token bound to it.
+func (h *Handler) newSession(user models.User, info deviceInfo) (session, error) {
 	device := models.Device{
 		ID:         uuid.NewString(),
 		UserID:     user.ID,
@@ -110,15 +120,13 @@ func (h *Handler) respondSession(c *gin.Context, status int, user models.User, i
 		device.Name = "Unknown device"
 	}
 	if err := h.db.Create(&device).Error; err != nil {
-		serverError(c, err)
-		return
+		return session{}, err
 	}
 	token, err := h.tokens.Issue(user.ID, device.ID)
 	if err != nil {
-		serverError(c, err)
-		return
+		return session{}, err
 	}
-	c.JSON(status, session{Token: token, User: user})
+	return session{Token: token, User: user}, nil
 }
 
 // RegisterDevice gives a token from before devices were tracked a device of its own,

@@ -90,10 +90,10 @@ export function LibraryPage() {
       <div className="mx-auto grid w-full max-w-[1400px] grid-cols-[1fr_auto_1fr] items-center gap-3 px-8 pt-1 pb-3">
         <div>
           {folderId && (
-            <Hint label={`Back to ${parent?.name ?? "Library"}`} shortcut="back">
+            <Hint label={`Back to ${parent?.name ?? "Reader"}`} shortcut="back">
               <Button variant="outline" size="sm" className="h-8 gap-1 pr-3 pl-2 text-xs" onClick={goUp}>
                 <ChevronLeft className="size-4" />
-                {parent?.name ?? "Library"}
+                {parent?.name ?? "Reader"}
               </Button>
             </Hint>
           )}
@@ -109,7 +109,9 @@ export function LibraryPage() {
                 ))}
               </ToggleGroup>
               {/* Too narrow for the tabs and a search box side by side: the tabs fold into a menu. */}
-              <TabMenu tab={tab} onChange={setTab} />
+              <div className="min-[641px]:hidden">
+                <TabMenu tab={tab} onChange={setTab} />
+              </div>
             </>
           )}
         </div>
@@ -201,7 +203,7 @@ function TabMenu({ tab, onChange }: { tab: LibraryTab; onChange(tab: LibraryTab)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1 pr-2 pl-3 text-xs min-[641px]:hidden">
+        <Button variant="outline" size="sm" className="h-8 gap-1 pr-2 pl-3 text-xs">
           {LIBRARY_TABS.find(([value]) => value === tab)?.[1]}
           <ChevronDown className="size-3.5 opacity-60" />
         </Button>
