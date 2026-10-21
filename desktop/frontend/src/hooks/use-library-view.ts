@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useLibrary } from "@/store/library";
+import { useUploads } from "@/store/uploads";
 import type { Book, Folder } from "@/lib/types";
 
 const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -16,7 +17,8 @@ export interface LibraryView {
 
 export function useLibraryView(folderId: string | null): LibraryView {
   const folders = useLibrary((s) => s.folders);
-  const books = useLibrary((s) => s.books);
+  const stored = useLibrary((s) => s.books);
+  const pending = useUploads((s) => s.pending);
 
   return useMemo(() => {
     const folder = folderId ? (folders[folderId] ?? null) : null;
@@ -25,7 +27,7 @@ export function useLibraryView(folderId: string | null): LibraryView {
     for (let f: Folder | undefined = folder ?? undefined; f && path.length < 32; f = f.parentId ? folders[f.parentId] : undefined) path.unshift(f);
 
     const parent = folder?.id ?? null;
-    const allBooks = Object.values(books);
+    const allBooks = Object.values({ ...pending, ...stored });
     const childFolders = Object.values(folders)
       .filter((f) => (f.parentId ?? null) === parent)
       .sort((a, b) => byName.compare(a.name, b.name));
@@ -40,5 +42,5 @@ export function useLibraryView(folderId: string | null): LibraryView {
       books: allBooks.filter((b) => (b.folderId ?? null) === parent).sort((a, b) => b.addedAt - a.addedAt),
       folderBooks,
     };
-  }, [folderId, folders, books]);
+  }, [folderId, folders, stored, pending]);
 }

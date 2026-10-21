@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
+import { Loader2 } from "lucide-react";
 import { BookCover } from "@/components/common/book-cover";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { NameDialog } from "@/components/common/name-dialog";
@@ -10,12 +11,14 @@ import { deleteBook, updateBook } from "@/lib/actions";
 import type { Book } from "@/lib/types";
 import { useLibrary } from "@/store/library";
 import { useBookTransition } from "@/store/transition";
+import { useUploads } from "@/store/uploads";
 import { BookDetails } from "./book-details";
 import { dragSource } from "./drag";
 import { MoveToMenu } from "./move-to-menu";
 
 export function BookCard({ book }: { book: Book }) {
   const percent = useLibrary((s) => s.progress[book.id]?.percent ?? 0);
+  const uploading = useUploads((s) => book.id in s.pending);
   const openBook = useOpenBook();
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -36,7 +39,7 @@ export function BookCard({ book }: { book: Book }) {
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger asChild>
+        <ContextMenuTrigger asChild disabled={uploading}>
           <motion.div
             layout
             initial={{ opacity: 0, y: 8 }}
@@ -51,19 +54,28 @@ export function BookCard({ book }: { book: Book }) {
             >
               <button
                 type="button"
+                disabled={uploading}
+                aria-busy={uploading}
                 onPointerDown={(e) => {
+                  if (uploading) return;
                   pressed.current = true;
                   setDetails(false);
                   drag.onPointerDown(e);
                 }}
                 onPointerLeave={() => (pressed.current = false)}
-                onClick={() => open()}
-                className="group block w-full text-left outline-none"
+                onClick={() => !uploading && open()}
+                className="group block w-full text-left outline-none disabled:cursor-default"
               >
-                <HoverCard openDelay={600} closeDelay={80} open={details} onOpenChange={(open) => setDetails(open && !pressed.current)}>
+                <HoverCard openDelay={600} closeDelay={80} open={details && !uploading} onOpenChange={(open) => setDetails(open && !pressed.current)}>
                   <HoverCardTrigger asChild>
-                    <div data-drag-image className="transition-transform duration-300 ease-out group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-ring rounded-md">
-                      <BookCover book={book} className="group-hover:shadow-lg transition-shadow duration-300" />
+                    <div data-drag-image className="relative rounded-md transition-transform duration-300 ease-out group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-ring group-disabled:translate-y-0">
+                      {/* Its cover isn't on the server yet, so don't ask for it. */}
+                      <BookCover book={uploading ? { ...book, hasCover: false } : book} className="transition-shadow duration-300 group-hover:shadow-lg group-disabled:shadow-sm" />
+                      {uploading && (
+                        <div className="absolute inset-0 grid place-items-center rounded-md bg-black/35">
+                          <Loader2 className="size-7 animate-spin text-white" aria-label="Uploading" />
+                        </div>
+                      )}
                     </div>
                   </HoverCardTrigger>
                   <HoverCardContent side="right" align="start" sideOffset={12} className="w-64" onClick={(e) => e.stopPropagation()}>
@@ -71,7 +83,7 @@ export function BookCard({ book }: { book: Book }) {
                   </HoverCardContent>
                 </HoverCard>
                 <div className="mt-2.5 truncate text-[13px] font-medium leading-tight">{book.title}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">{Math.round(percent * 100)}%</div>
+                <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">{uploading ? "Uploading…" : `${Math.round(percent * 100)}%`}</div>
               </button>
             </motion.div>
           </motion.div>

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import { Bookmark, ChevronLeft, Pin } from "lucide-react";
 import { Hint } from "@/components/common/hint";
+import { WindowControls } from "@/components/common/window-controls";
+import { platform } from "@/platform";
 import { cn } from "@/lib/utils";
 
 interface ReaderToolbarProps {
@@ -40,7 +42,7 @@ export function ReaderToolbar({ visible, title, bookmarked, pinned, settings, on
       initial={false}
       animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -6 }}
       transition={{ duration: 0.2 }}
-      className={cn("drag-region traffic-light-inset absolute inset-x-0 top-0 z-30 flex h-(--titlebar-height) items-center gap-1 px-3", !visible && "pointer-events-none")}
+      className={cn("drag-region traffic-light-inset caption-inset absolute inset-x-0 top-0 z-30 flex h-(--titlebar-height) items-center gap-1 px-3", !visible && "pointer-events-none")}
     >
       {onClose && (
         <Hint label="Library" shortcut="close">
@@ -49,7 +51,7 @@ export function ReaderToolbar({ visible, title, bookmarked, pinned, settings, on
           </ChromeButton>
         </Hint>
       )}
-      {title && <div className="pointer-events-none absolute inset-x-44 truncate text-center text-[13px] font-medium text-[color:var(--reader-fg)] opacity-60">{title}</div>}
+      {title && <div className="caption-title pointer-events-none absolute inset-x-44 truncate text-center text-[13px] font-medium text-[color:var(--reader-fg)] opacity-60">{title}</div>}
       <div className="ml-auto flex items-center gap-0.5">
         {contents}
         <Hint label={bookmarked ? "Remove bookmark" : "Bookmark this page"} shortcut="bookmark">
@@ -64,6 +66,7 @@ export function ReaderToolbar({ visible, title, bookmarked, pinned, settings, on
           </ChromeButton>
         </Hint>
       </div>
+      {platform().os === "windows" && <WindowControls />}
     </motion.header>
   );
 }

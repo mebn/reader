@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { useLibrary } from "@/store/library";
 import { useSession } from "@/store/session";
+import { useUploads } from "@/store/uploads";
 import { readBookInfo } from "@/reader/formats";
 import { api } from "./api";
 import { sync } from "./sync";
@@ -48,6 +49,7 @@ export async function importFiles(files: File[], folderId: string | null) {
 
   const id = toast.loading(supported.length > 1 ? `Adding ${supported.length} books` : `Adding ${supported[0].name}`);
   let added = 0;
+  let pending: string | null = null;
   for (const file of supported) {
     try {
       const format = formatFromName(file.name)!;
@@ -66,9 +68,16 @@ export async function importFiles(files: File[], folderId: string | null) {
         addedAt: Date.now(),
       };
       const cover = info.cover ? await shrinkImage(info.cover).catch(() => info.cover!) : undefined;
+      // The card shows up right away, with a spinner, and can't be opened until the server has the file.
+      pending = book.id;
+      useUploads.getState().start(book);
       sync.received("books", await api.uploadBook(session, book, file, cover));
+      useUploads.getState().finish(book.id);
+      pending = null;
       added++;
     } catch (err) {
+      if (pending) useUploads.getState().finish(pending);
+      pending = null;
       console.error(err);
       toast.error(`Couldn't add ${file.name}`, { description: (err as Error).message });
     }

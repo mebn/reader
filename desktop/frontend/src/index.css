@@ -163,6 +163,23 @@ html.dragging-item [data-slot="hover-card-content"] {
 html[data-platform="darwin"]:not(.fullscreen) .traffic-light-inset {
   padding-left: 96px;
 }
+/* On Windows the page draws its own window buttons (3 x 46px) in the top right. */
+html[data-platform="windows"] {
+  --titlebar-height: 40px;
+}
+html[data-platform="windows"] .caption-inset {
+  padding-right: 150px;
+}
+/* A centered title must clear the toolbar buttons and the window buttons on its right,
+   so it gives way to them before it can overlap. */
+html[data-platform="windows"] .caption-title {
+  inset-inline: 300px;
+}
+@media (max-width: 860px) {
+  html[data-platform="windows"] .caption-title {
+    display: none;
+  }
+}
 
 /* Wails marks elements with data-file-drop-target while files hover them. */
 .file-drop-target-active .drop-overlay {

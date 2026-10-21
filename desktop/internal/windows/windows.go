@@ -23,6 +23,8 @@ func Options(name, title, route string) application.WebviewWindowOptions {
 		MinHeight:        480,
 		URL:              "/#" + route,
 		BackgroundColour: application.NewRGB(250, 250, 249),
+		// On Windows the header is the title bar, with the window buttons drawn by the page.
+		Frameless: runtime.GOOS == "windows",
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHiddenInset,
 			InvisibleTitleBarHeight: 54,

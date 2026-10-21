@@ -37,10 +37,15 @@ type Server struct {
 
 	mu    sync.RWMutex
 	local map[string]string
+
+	// One download per file at a time: a book opened twice at once (or its window and
+	// the library) would otherwise race to rename onto the same path, which Windows refuses.
+	dlMu sync.Mutex
+	dl   map[string]*sync.Mutex
 }
 
 func NewServer(cacheDir string, sessions *session.Service) *Server {
-	return &Server{dir: cacheDir, sessions: sessions, client: &http.Client{}, local: map[string]string{}}
+	return &Server{dir: cacheDir, sessions: sessions, client: &http.Client{}, local: map[string]string{}, dl: map[string]*sync.Mutex{}}
 }
 
 // Register makes local paths readable by the webview and returns their URLs.
@@ -100,14 +105,30 @@ func (s *Server) serveCached(w http.ResponseWriter, r *http.Request, kind, id, r
 	}
 	path := filepath.Join(s.dir, kind, name)
 
-	if _, err := os.Stat(path); err != nil {
-		if err := s.download(fmt.Sprintf("/api/books/%s/%s", id, remote), path); err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
+	if err := s.ensure(path, fmt.Sprintf("/api/books/%s/%s", id, remote)); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFile(w, r, path)
+}
+
+// ensure downloads endpoint to path unless it is already there.
+func (s *Server) ensure(path, endpoint string) error {
+	s.dlMu.Lock()
+	lock, ok := s.dl[path]
+	if !ok {
+		lock = &sync.Mutex{}
+		s.dl[path] = lock
+	}
+	s.dlMu.Unlock()
+
+	lock.Lock()
+	defer lock.Unlock()
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	return s.download(endpoint, path)
 }
 
 func (s *Server) download(endpoint, dst string) error {
