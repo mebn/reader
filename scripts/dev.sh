@@ -51,7 +51,29 @@ print(next((d["udid"] for ds in json.load(sys.stdin)["devices"].values() for d i
 }
 
 run_android() {
-  echo "› There's no Android app yet; skipping it."
+  export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+  # Gradle needs a JDK; Android Studio ships one.
+  if [ -z "${JAVA_HOME:-}" ] && ! /usr/libexec/java_home >/dev/null 2>&1; then
+    export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  fi
+  local adb="$ANDROID_HOME/platform-tools/adb"
+  if ! "$adb" devices | grep -q 'device$'; then
+    local avd="${AVD:-$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n1)}"
+    if [ -z "$avd" ]; then
+      echo "No Android emulator; create one in Android Studio's Device Manager" >&2
+      exit 1
+    fi
+    echo "› Starting the $avd emulator"
+    "$ANDROID_HOME/emulator/emulator" -avd "$avd" >/dev/null 2>&1 &
+    "$adb" wait-for-device
+    until [ "$("$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do sleep 1; done
+  fi
+  echo "› Building the Android app"
+  (cd android && ./gradlew --quiet installDebug)
+  # Android 17 asks before an app reaches the computer's server, a local network address.
+  "$adb" shell pm grant com.mebn.reader android.permission.ACCESS_LOCAL_NETWORK 2>/dev/null || true
+  "$adb" shell am start -n com.mebn.reader/.MainActivity >/dev/null
+  echo "› Reader is running on Android"
 }
 
 start_server

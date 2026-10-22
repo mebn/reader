@@ -4,11 +4,12 @@
 #   make server          just the server
 #   make desktop         server + desktop app (wails3 dev, hot reload)
 #   make ios             server + iOS app in the simulator
-#   make android         server + Android app (not built yet)
+#   make android         server + Android app in the emulator
 #   make desktop-ios     server + desktop + iOS; likewise desktop-android, ios-android
 #   make all             server + every app
 #
-# Options: SIM="iPhone 17 Pro" picks the simulator, SERVER_PORT=8081 the server's port.
+# Options: SIM="iPhone 17 Pro" picks the simulator, AVD=… the Android emulator,
+# SERVER_PORT=8081 the server's port.
 
 DEV := scripts/dev.sh
 

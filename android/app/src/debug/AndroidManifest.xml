@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds talk to the local server: over plain HTTP, and at a private address, which
+     Android 17 only lets apps reach with the local network permission. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <application android:usesCleartextTraffic="true" />
+</manifest>

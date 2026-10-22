@@ -7,9 +7,8 @@ bookmarks and page styles in sync across devices.
 backend/  Go · Gin · GORM · SQLite   accounts, files and sync
 desktop/  Go · Wails v3 · React · shadcn/ui   macOS and Windows app
 ios/      SwiftUI · TextKit · PDFKit          iPhone and iPad app (iOS 26, Liquid Glass)
+android/  Kotlin · Jetpack Compose            Android phone and tablet app (Android 15+)
 ```
-
-Android is planned.
 
 ## Formats
 
@@ -17,9 +16,10 @@ EPUB, PDF, FB2, CBZ and TXT.
 
 ## Running
 
-`make desktop`, `make ios`, `make desktop-ios` or `make all` start the server and the apps
+`make desktop`, `make ios`, `make android`, `make desktop-ios` or `make all` start the server and the apps
 together (`make server` for just the server); see the Makefile for the rest. Pick a
-simulator with `SIM="iPhone 17 Pro"`. Ctrl-C stops everything, including the server.
+simulator with `SIM="iPhone 17 Pro"` and an emulator with `AVD=…`. Ctrl-C stops everything,
+including the server.
 
 Backend (needs Go 1.25+):
 
@@ -84,6 +84,25 @@ against WebKit when run with `TEST_RUNNER_BOOKS_DIR` pointing at a folder of EPU
 PDF highlights are an exception: PDFKit and pdf.js extract page text slightly
 differently, so iOS finds a PDF highlight from another device by its text when the
 offsets don't match.
+
+Android (needs Android Studio, which brings the SDK and a JDK): open `android/` in
+Android Studio, or build from the command line:
+
+```sh
+cd android
+./gradlew installDebug    # build and install on the running emulator or phone
+./gradlew assembleRelease # release build in app/build/outputs/apk/release
+```
+
+Debug builds use `http://10.0.2.2:8080`, the emulator's address for the computer's
+localhost, and release builds `https://reader.marnil.dev` (`SERVER_URL` in
+`app/build.gradle.kts`). Android 17 asks for the local network permission before an app
+reaches the computer; `make android` grants it, otherwise allow it when the app asks.
+
+The Android app is native too: EPUB, FB2 and TXT are laid out with `StaticLayout`, one per
+chapter, and cut into pages a line at a time; PDFs are drawn with `PdfRenderer`, whose text
+API (Android 15) selects and highlights, with PdfBox reading their outlines; comics are
+shown as images. Highlights count character offsets the same way as on iOS and the desktop.
 
 ## How sync works
 
