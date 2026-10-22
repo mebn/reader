@@ -59,8 +59,10 @@ wails3 build      # production build in desktop/bin
 
 The frontend also runs in a plain browser for quick UI work: `cd desktop/frontend && npm run dev`.
 
-The app talks to the server at `VITE_SERVER_URL`, set when building (default
-`http://localhost:8080`), e.g. `VITE_SERVER_URL=https://reader.example.com wails3 build`.
+The app talks to the server at `VITE_SERVER_URL`, set when building: `wails3 dev` uses
+`http://localhost:8080` (`frontend/.env.development`) and `wails3 build` uses
+`https://reader.marnil.dev` (`frontend/.env.production`). Setting it in the environment
+overrides both, e.g. `VITE_SERVER_URL=https://reader.example.com wails3 build`.
 
 iOS (needs Xcode 26+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen)):
 
@@ -70,8 +72,9 @@ xcodegen generate     # creates Reader.xcodeproj from project.yml
 open Reader.xcodeproj
 ```
 
-The server is fixed at build time by the `READER_SERVER_URL` build setting (default
-`http://localhost:8080`, which a simulator reaches but a phone doesn't), e.g.
+The server is fixed at build time by the `READER_SERVER_URL` build setting: Debug builds
+use `http://localhost:8080` (which a simulator reaches but a phone doesn't) and Release
+builds `https://reader.marnil.dev`. Override it with e.g.
 `xcodebuild -scheme Reader READER_SERVER_URL=https://reader.example.com`.
 
 The iOS app is fully native: EPUB, FB2 and TXT are parsed and paginated with TextKit,
