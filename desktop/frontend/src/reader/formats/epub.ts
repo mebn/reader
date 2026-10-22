@@ -53,12 +53,37 @@ export async function openEpub(data: Blob): Promise<ReflowDocument> {
     return url;
   };
 
+  /** CSS with its url()s pointing at the book's files, relative to the file it came from. */
+  const resolveCss = async (css: string, from: string) => {
+    const urls = new Map<string, string>();
+    for (const [, , href] of css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)) {
+      if (!isExternal(href) && !urls.has(href)) urls.set(href, await resourceUrl(resolvePath(from, href).path));
+    }
+    return css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (match, _q, href) => (isExternal(href) ? "none" : `url("${urls.get(href) ?? ""}")`));
+  };
+
+  const styleCache = new Map<number, Promise<string>>();
+  const chapterCss = async (index: number) => {
+    const { path } = spine[index];
+    const doc = parseXml(await readText(path), "application/xhtml+xml");
+    const parts: string[] = [];
+    for (const el of Array.from(doc.querySelectorAll("link, style"))) {
+      if (el.localName === "style") {
+        parts.push(await resolveCss(el.textContent ?? "", path));
+      } else if (/stylesheet/i.test(el.getAttribute("rel") ?? "") && el.getAttribute("href") && !isExternal(el.getAttribute("href")!)) {
+        const cssPath = resolvePath(path, el.getAttribute("href")!).path;
+        if (zip.file(cssPath)) parts.push(await resolveCss(await readText(cssPath), cssPath));
+      }
+    }
+    return parts.join("\n");
+  };
+
   const chapterCache = new Map<number, Promise<DocumentFragment>>();
   const parseChapter = async (index: number) => {
     const { path } = spine[index];
     const doc = parseXml(await readText(path), "application/xhtml+xml");
     const body = doc.body ?? doc.getElementsByTagName("body")[0] ?? doc.documentElement;
-    sanitize(body);
+    sanitize(body, true);
 
     await Promise.all(
       Array.from(body.querySelectorAll("img[src], image")).map(async (el) => {
@@ -95,6 +120,11 @@ export async function openEpub(data: Blob): Promise<ReflowDocument> {
     async loadChapter(index) {
       if (!chapterCache.has(index)) chapterCache.set(index, parseChapter(index));
       return (await chapterCache.get(index)!).cloneNode(true) as DocumentFragment;
+    },
+
+    chapterStyles(index) {
+      if (!styleCache.has(index)) styleCache.set(index, chapterCss(index));
+      return styleCache.get(index)!;
     },
 
     resolveLink(href) {

@@ -31,25 +31,43 @@ export class HighlightLayer {
     Object.assign(this.el.style, { position: "absolute", left: "0", top: "0", width: "0", height: "0", pointerEvents: "none" });
   }
 
-  paint(root: HTMLElement, spans: HighlightSpan[]) {
+  /**
+   * Paints spans in order; where they overlap, only the first is painted, so color never piles up.
+   * `bounds`, relative to the root, drops line boxes that fall outside the text, such as
+   * the stray ones browsers report around column breaks.
+   */
+  paint(root: HTMLElement, spans: HighlightSpan[], bounds?: (box: Omit<Box, "id">) => boolean) {
     this.el.replaceChildren();
     this.boxes = [];
     const origin = root.getBoundingClientRect();
+    const painted: [number, number][] = [];
 
     for (const span of spans) {
-      const range = offsetsToRange(root, span.start, span.end);
-      if (!range) continue;
       const color = HIGHLIGHT_COLORS[span.color] ?? HIGHLIGHT_COLORS.yellow;
-      const rects = textRects(range);
-      for (const r of rects) {
-        const box = { id: span.id, left: r.left - origin.left, top: r.top - origin.top, width: r.width, height: r.height };
-        this.boxes.push(box);
-        this.el.appendChild(shape(box, `color-mix(in oklab, ${color} 45%, transparent)`, "2px"));
+      for (const [start, end] of uncovered(span.start, span.end, painted)) {
+        const range = offsetsToRange(root, start, end);
+        if (!range) continue;
+        for (const r of textRects(range)) {
+          const box = { id: span.id, left: r.left - origin.left, top: r.top - origin.top, width: r.width, height: r.height };
+          if (bounds && !bounds(box)) continue;
+          this.boxes.push(box);
+          if (span.note) {
+            // A highlight with a note is underlined over a faint wash, so it reads apart from
+            // a plain highlight at a glance.
+            this.el.appendChild(shape(box, `color-mix(in oklab, ${color} 14%, transparent)`, "2px"));
+            const line = { ...box, top: box.top + box.height - 2.5, height: 2 };
+            this.el.appendChild(shape(line, `color-mix(in oklab, ${color} 90%, transparent)`, "1px"));
+          } else {
+            this.el.appendChild(shape(box, `color-mix(in oklab, ${color} 45%, transparent)`, "2px"));
+          }
+        }
       }
-      const last = rects.at(-1);
+      painted.push([span.start, span.end]);
+      const whole = span.note ? offsetsToRange(root, span.start, span.end) : null;
+      const last = whole ? textRects(whole).findLast((r) => !bounds || bounds({ left: r.left - origin.left, top: r.top - origin.top, width: r.width, height: r.height })) : undefined;
       if (span.note && last) {
         // A small dot at the end, like a footnote mark, without taking any space in the text.
-        const dot = { id: span.id, left: last.right - origin.left - 1, top: last.top - origin.top - 2, width: 5, height: 5 };
+        const dot = { id: span.id, left: last.right - origin.left, top: last.top - origin.top - 3, width: 6, height: 6 };
         this.el.appendChild(shape(dot, color, "999px"));
       }
     }
@@ -63,6 +81,18 @@ export class HighlightLayer {
     const box = this.boxes.findLast((b) => px >= b.left && px <= b.left + b.width && py >= b.top && py <= b.top + b.height);
     return box ? { id: box.id, rect: new DOMRect(box.left + origin.left, box.top + origin.top, box.width, box.height) } : null;
   }
+}
+
+/** The parts of [start, end) that none of the painted ranges cover. */
+function uncovered(start: number, end: number, painted: [number, number][]): [number, number][] {
+  let parts: [number, number][] = [[start, end]];
+  for (const [ps, pe] of painted) {
+    parts = parts.flatMap(([s, e]): [number, number][] => {
+      if (pe <= s || ps >= e) return [[s, e]];
+      return [...(ps > s ? [[s, ps] as [number, number]] : []), ...(pe < e ? [[pe, e] as [number, number]] : [])];
+    });
+  }
+  return parts;
 }
 
 function shape(box: Box, background: string, radius: string) {
@@ -93,7 +123,8 @@ function textRects(range: Range): DOMRect[] {
     const part = document.createRange();
     part.setStart(text, node === range.startContainer ? range.startOffset : 0);
     part.setEnd(text, node === range.endContainer ? range.endOffset : text.length);
-    for (const r of part.getClientRects()) if (r.width > 0.5 && r.height > 0) rects.push(r);
+    // Whitespace alone, such as the line break between two paragraphs, is never painted.
+    if (part.toString().trim()) for (const r of part.getClientRects()) if (r.width > 0.5 && r.height > 0) rects.push(r);
     if (node === range.endContainer) break;
   }
   return rects;

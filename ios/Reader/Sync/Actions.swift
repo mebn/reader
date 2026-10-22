@@ -79,10 +79,12 @@ enum Actions {
         sync.put(Annotation(id: UUID().uuidString.lowercased(), modifiedAt: 0, bookId: bookId, kind: kind, locator: locator.json, text: text, note: note, color: color, label: label))
     }
 
-    static func update(_ annotation: Annotation, note: String? = nil, color: String? = nil) {
+    static func update(_ annotation: Annotation, note: String? = nil, color: String? = nil, locator: Locator? = nil, text: String? = nil) {
         var a = annotation
         if let note { a.note = note }
         if let color { a.color = color }
+        if let locator { a.locator = locator.json }
+        if let text { a.text = text }
         sync.put(a)
     }
 

@@ -11,11 +11,12 @@ export function SettingsPreview({ settings, dark }: { settings: ReaderSettings; 
 
   return (
     <div
-      className="aspect-[3/4] overflow-hidden rounded-xl shadow-sm ring-1 ring-black/5 transition-colors duration-300 dark:ring-white/10"
+      className="flex aspect-[3/4] flex-col overflow-hidden rounded-xl shadow-sm ring-1 ring-black/5 transition-colors duration-300 dark:ring-white/10"
       style={{ background: bg.color, padding: `24px ${settings.sideMargin}%` }}
     >
+      {/* Cut off inside the padding, so the page keeps its bottom margin like a real one. */}
       <div
-        className="book-content"
+        className="book-content min-h-0 flex-1 overflow-hidden"
         style={
           {
             "--reader-font": fontFamily(settings.font),

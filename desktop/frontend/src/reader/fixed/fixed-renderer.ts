@@ -1,7 +1,7 @@
 import type { Annotation, Locator } from "@/lib/types";
 import type { FixedDocument, TocEntry } from "../formats";
 import { cloneWithCanvases } from "../page-turn";
-import { highlightAttrs, rangeToOffsets, unwrapMarks, wrapOffsets } from "../text-ranges";
+import { highlightAttrs, offsetsToRange, rangeToOffsets, unwrapMarks, wrapOffsets } from "../text-ranges";
 import type { Appearance, Position, Renderer, RendererEvents, TextSelection } from "../types";
 
 const PAD_Y = 44;
@@ -117,6 +117,13 @@ export class FixedRenderer implements Renderer {
     const text = sel.toString().replace(/\s+/g, " ").trim();
     if (!offsets || !text) return null;
     return { locator: { page: Number(slot.dataset.pageIndex), ...offsets }, text, rect: range.getBoundingClientRect() };
+  }
+
+  textOf(locator: Locator) {
+    if (locator.page === undefined || locator.start === undefined || locator.end === undefined) return null;
+    const layer = this.sheet.querySelector<HTMLElement>(`[data-page-index="${locator.page}"] .textLayer`);
+    const range = layer && offsetsToRange(layer, locator.start, locator.end);
+    return range ? range.toString().replace(/\s+/g, " ").trim() : null;
   }
 
   annotationAt(x: number, y: number) {

@@ -155,7 +155,7 @@ function Choose({ onEmail }: { onEmail: () => void }) {
       }
       if (!cancelled) setError("Google sign-in timed out. Try again.");
     } catch (err) {
-      if (!cancelled) setError((err as Error).message);
+      if (!cancelled) setError(sentence((err as Error).message));
     } finally {
       if (!cancelled) setWaiting(false);
     }
@@ -236,7 +236,7 @@ function EmailForm({ active, onBack }: { active: boolean; onBack: () => void }) 
       const { token, user } = await auth(DEFAULT_SERVER, email, password, await platform().device());
       await enter(signIn, { serverUrl: DEFAULT_SERVER, token, email: user.email });
     } catch (err) {
-      setError((err as Error).message);
+      setError(sentence((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -280,6 +280,11 @@ function EmailForm({ active, onBack }: { active: boolean; onBack: () => void }) 
       </div>
     </form>
   );
+}
+
+/** Server errors come in lower case, such as "wrong email or password". */
+function sentence(message: string) {
+  return message.charAt(0).toUpperCase() + message.slice(1);
 }
 
 function GoogleMark() {

@@ -100,20 +100,30 @@ export function LayoutSettings({ value, onChange, title = "Layout" }: SectionPro
           onChange={(align) => onChange({ align: align as ReaderSettings["align"] })}
         />
       </Row>
-      <Row label="Pages">
-        <Segmented
-          value={String(value.pages)}
-          options={[
-            ["1", "One"],
-            ["2", "Two"],
-          ]}
-          onChange={(pages) => onChange({ pages: Number(pages) as 1 | 2 })}
-        />
-      </Row>
+      <PagesSetting value={value} onChange={onChange} />
       <Row label="Hyphenation">
         <Switch checked={value.hyphenate} onCheckedChange={(hyphenate) => onChange({ hyphenate })} />
       </Row>
+      <Row label="Original styles">
+        <Switch checked={value.originalStyles} onCheckedChange={(originalStyles) => onChange({ originalStyles })} />
+      </Row>
     </div>
+  );
+}
+
+/** One page at a time, or two side by side when the window is wide enough. */
+export function PagesSetting({ value, onChange }: SectionProps) {
+  return (
+    <Row label="Pages">
+      <Segmented
+        value={String(value.pages)}
+        options={[
+          ["1", "One"],
+          ["2", "Two"],
+        ]}
+        onChange={(pages) => onChange({ pages: Number(pages) as 1 | 2 })}
+      />
+    </Row>
   );
 }
 

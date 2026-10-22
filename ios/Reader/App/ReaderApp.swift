@@ -66,6 +66,8 @@ private struct ToastView: View {
                 if let action = toast.action {
                     Button(action) { toasts.runAction() }
                         .buttonStyle(.glassProminent)
+                        // The tint is near white in dark mode, where the default white label vanishes.
+                        .foregroundStyle(Color(uiColor: .systemBackground))
                 }
             }
             .padding(.horizontal, 18)

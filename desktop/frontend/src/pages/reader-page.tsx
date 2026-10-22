@@ -4,7 +4,7 @@ import { Page } from "@/components/common/page";
 import { AnnotationEditor } from "@/components/reader/annotation-editor";
 import { ColorDots } from "@/components/reader/color-dots";
 import { Floating } from "@/components/reader/floating";
-import { ReaderFooter, ReaderHeader } from "@/components/reader/reader-footer";
+import { ReaderFooter, ReaderHeader, ReaderJumps } from "@/components/reader/reader-footer";
 import { ReaderSettingsPanel } from "@/components/reader/reader-settings-panel";
 import { ReaderSidebar } from "@/components/reader/reader-sidebar";
 import { ReaderToolbar } from "@/components/reader/reader-toolbar";
@@ -13,10 +13,10 @@ import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { saveSettings, useAppSettings, useBookReaderSettings, useDefaultReaderSettings } from "@/hooks/use-settings";
 import { useIsDark, useThemeOverride } from "@/hooks/use-theme";
-import { addAnnotation, removeAnnotation } from "@/lib/actions";
+import { addAnnotation, highlightSelection, removeAnnotation } from "@/lib/actions";
 import { DEFAULT_READER, resolveBackground, SCOPE, type ReaderSettings } from "@/lib/settings";
 import { useShortcuts } from "@/lib/shortcuts";
-import type { Book } from "@/lib/types";
+import type { Book, Locator } from "@/lib/types";
 import { platform } from "@/platform";
 import type { TextSelection } from "@/reader";
 import { useLibrary } from "@/store/library";
@@ -27,9 +27,11 @@ const CHROME_TIMEOUT = 2500;
 const WHEEL_THRESHOLD = 40;
 /** Quiet time that ends a scroll gesture. */
 const WHEEL_GESTURE_GAP = 250;
-/** A scroll this much faster than the one before it, and at least this fast, starts a new swipe. */
+/** Scrolls speeding up this much, twice in a row, and at least this fast, start a new swipe. */
 const WHEEL_NEW_SWIPE_RATIO = 1.6;
 const WHEEL_NEW_SWIPE_MIN = 8;
+/** After a turn the wheel stays locked at least this long, about as long as the page takes to turn. */
+const WHEEL_MIN_LOCK = 600;
 /** Long enough that dragging a slider saves once, at the end. */
 const SETTINGS_SAVE_DELAY = 400;
 
@@ -111,6 +113,12 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
     canInteract: () => !pointerDown.current.dismissing,
   });
   const { position, turn, renderer } = engine;
+  /** The place to go back to, named by its page while pages are numbered. */
+  const backLabel = (locator: Locator | null) => {
+    if (!locator) return null;
+    const page = renderer.current?.pageOf(locator);
+    return page ? `Back to page ${page}` : "Back";
+  };
 
   // Chrome shows on movement near the top and hides when idle.
   const [chrome, setChrome] = useState(true);
@@ -166,7 +174,7 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
 
   const highlight = (color: string, withNote = false, target = selection) => {
     if (!target) return;
-    const created = addAnnotation({ bookId: book.id, kind: "highlight", locator: JSON.stringify(target.locator), text: target.text, note: "", color, label: "" });
+    const created = highlightSelection(book.id, annotations, target, color, (locator) => renderer.current?.textOf(locator) ?? null);
     getSelection()?.removeAllRanges();
     setSelection(null);
     setMenu(null);
@@ -222,28 +230,31 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
   );
 
   // One page per gesture. After a turn the wheel stays locked through the trackpad's
-  // momentum, which can trickle on for seconds. Momentum only ever slows down, so input
-  // that suddenly speeds up again is a new swipe and unlocks at once; so does a pause.
-  const wheel = useRef({ delta: 0, locked: false, last: 0, slowing: false, timer: 0 });
+  // momentum, which can trickle on for seconds. Momentum only ever slows down, though
+  // unevenly, so input that speeds up again twice in a row is a new swipe and unlocks;
+  // so does a pause.
+  const wheel = useRef({ delta: 0, locked: false, lockedAt: 0, last: 0, slowing: false, rising: 0, timer: 0 });
   const onWheel = (e: React.WheelEvent) => {
     const w = wheel.current;
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     const speed = Math.abs(d);
     clearTimeout(w.timer);
-    w.timer = window.setTimeout(() => Object.assign(w, { delta: 0, locked: false, last: 0, slowing: false }), WHEEL_GESTURE_GAP);
+    w.timer = window.setTimeout(() => Object.assign(w, { delta: 0, locked: false, last: 0, slowing: false, rising: 0 }), WHEEL_GESTURE_GAP);
     if (w.locked) {
+      const rising = speed > w.last * WHEEL_NEW_SWIPE_RATIO && speed >= 1;
+      w.rising = rising ? w.rising + 1 : 0;
       // Only once this swipe is past its peak: while a finger is still speeding up, it isn't new.
-      const newSwipe = w.slowing && speed > Math.max(WHEEL_NEW_SWIPE_MIN, w.last * WHEEL_NEW_SWIPE_RATIO);
+      const newSwipe = w.slowing && w.rising >= 2 && speed > WHEEL_NEW_SWIPE_MIN && performance.now() - w.lockedAt > WHEEL_MIN_LOCK;
       if (speed < w.last) w.slowing = true;
       w.last = speed;
       if (!newSwipe) return;
-      Object.assign(w, { delta: 0, locked: false, slowing: false });
+      Object.assign(w, { delta: 0, locked: false, slowing: false, rising: 0 });
     }
     w.last = speed;
     w.delta += d;
     if (Math.abs(w.delta) < WHEEL_THRESHOLD) return;
     const direction = w.delta > 0 ? "next" : "prev";
-    Object.assign(w, { delta: 0, locked: true, slowing: false });
+    Object.assign(w, { delta: 0, locked: true, lockedAt: performance.now(), slowing: false, rising: 0 });
     void turn(direction);
   };
 
@@ -262,7 +273,13 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
   }, []);
   const onPointerUp = (e: React.PointerEvent) => {
     const moved = Math.hypot(e.clientX - pointerDown.current.x, e.clientY - pointerDown.current.y) > 4;
-    if (pointerDown.current.dismissing || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (pointerDown.current.dismissing) {
+      // A drag still selects, so a new passage can be picked while the last one's menu
+      // shows; only a plain press is spent on closing.
+      if (moved) requestAnimationFrame(() => setSelection(renderer.current?.selection() ?? null));
+      return;
+    }
     requestAnimationFrame(() => {
       const sel = renderer.current?.selection() ?? null;
       if (sel) return setSelection(sel);
@@ -315,6 +332,7 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
             dark={dark}
             onModeChange={(mode) => setApp({ theme: mode })}
             hasOverride={hasOverride || Object.keys(draft).length > 0}
+            fixed={book.format === "pdf" || book.format === "cbz"}
             onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
             onMakeDefault={() => {
               saveSettings(SCOPE.reader, settings);
@@ -374,6 +392,14 @@ function ReaderView({ book, standalone }: { book: Book; standalone: boolean }) {
 
           <ReaderHeader text={ready ? headerText : undefined} hidden={chromeVisible} />
           <ReaderFooter position={ready ? position : null} chapter={chapterTitle} settings={settings} />
+          {ready && (
+            <ReaderJumps
+              back={backLabel(engine.returnTo)}
+              offer={engine.offer?.label ?? null}
+              onBack={engine.goBack}
+              onContinue={engine.acceptOffer}
+            />
+          )}
 
           {engine.status.state === "error" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">

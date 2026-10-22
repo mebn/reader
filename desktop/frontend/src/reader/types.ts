@@ -59,6 +59,8 @@ export interface Renderer {
 
   setAnnotations(annotations: Annotation[]): void;
   selection(): TextSelection | null;
+  /** The text a locator covers, as a selection would give it; null when it isn't laid out. */
+  textOf(locator: Locator): string | null;
   /** The highlight under a point on screen, if any. */
   annotationAt(x: number, y: number): { id: string; rect: DOMRect } | null;
   /** Whether a locator is visible on the current page(s). */

@@ -17,6 +17,10 @@ EPUB, PDF, FB2, CBZ and TXT.
 
 ## Running
 
+`make desktop`, `make ios`, `make desktop-ios` or `make all` start the server and the apps
+together (`make server` for just the server); see the Makefile for the rest. Pick a
+simulator with `SIM="iPhone 17 Pro"`. Ctrl-C stops everything, including the server.
+
 Backend (needs Go 1.25+):
 
 ```sh

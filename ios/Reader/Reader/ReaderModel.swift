@@ -1,6 +1,12 @@
 import Observation
 import SwiftUI
 
+/// Where another device read up to, and how to say so.
+struct ContinueOffer: Equatable {
+    var locator: Locator
+    var label: String
+}
+
 /// Where to open a book instead of its saved position, such as a highlight picked from
 /// the library's notes. Taken once.
 @MainActor
@@ -38,6 +44,11 @@ final class ReaderModel: ReaderEngineDelegate {
     var selection: TextSelection?
     /// The highlight whose color and note are being edited.
     var editing: String?
+    /// Where another device read up to, offered while it's ahead of this one.
+    private(set) var offer: ContinueOffer?
+    /// Where reading was before going to a highlight, note or bookmark, to get back to. Going
+    /// to another one keeps the first place; page turns and contents don't touch it.
+    private(set) var returnTo: Locator?
     var focusNote = false
     var showContents = false
     var showAppearance = false
@@ -86,6 +97,8 @@ final class ReaderModel: ReaderEngineDelegate {
             let jump = BookJump.take(bookId)
             holdPosition = jump != nil
             startLocator = jump ?? saved.map { Locator(json: $0.locator) } ?? Locator()
+            // Opened at a highlight or note, going back returns to where reading had got to.
+            returnTo = jump != nil ? saved.map { Locator(json: $0.locator) } : nil
             document = box.document
             status = .ready
             showChromeBriefly()
@@ -181,6 +194,24 @@ final class ReaderModel: ReaderEngineDelegate {
         engine?.goTo(entry)
     }
 
+    /// Goes to a highlight, note or bookmark, remembering where reading was.
+    func go(toAnnotation locator: Locator) {
+        if returnTo == nil { returnTo = position?.locator }
+        go(locator)
+    }
+
+    func goBack() {
+        guard let returnTo else { return }
+        self.returnTo = nil
+        go(returnTo)
+    }
+
+    /// The way back, named by its page while pages are numbered.
+    var returnLabel: String? {
+        guard let returnTo else { return nil }
+        return engine?.pageOf(returnTo).map { "Back to page \($0)" } ?? "Back"
+    }
+
     /// The chapter being read, by the contents' last entry at or before this position.
     var chapterTitle: String? { currentEntry?.label }
 
@@ -206,14 +237,41 @@ final class ReaderModel: ReaderEngineDelegate {
                               label: chapterTitle ?? book.title)
     }
 
-    func highlight(_ selection: TextSelection, color: String = "yellow", withNote: Bool = false) {
-        let created = Actions.addAnnotation(bookId: bookId, kind: .highlight, locator: selection.locator, text: selection.text, color: color)
+    /// Highlights the selection and opens it to pick a color or write a note, unless a
+    /// color was already picked.
+    func highlight(_ selection: TextSelection, color: String? = nil, withNote: Bool = false) {
+        let created = mergeIntoHighlights(selection, color: color)
+            ?? Actions.addAnnotation(bookId: bookId, kind: .highlight, locator: selection.locator, text: selection.text, color: color ?? "yellow")
         engine?.clearSelection()
         self.selection = nil
-        if withNote {
-            focusNote = true
+        if withNote || color == nil {
+            focusNote = withNote
             editing = created.id
         }
+    }
+
+    /// A selection that overlaps highlights already there grows the newest of them to cover
+    /// it all, keeping every note, instead of piling another highlight on top. Nil when
+    /// nothing overlaps.
+    private func mergeIntoHighlights(_ selection: TextSelection, color: String?) -> Annotation? {
+        let new = selection.locator
+        guard let start = new.start, let end = new.end else { return nil }
+        let overlapping = annotations
+            .filter { a in
+                let l = a.position
+                guard a.kind == .highlight, a.deleted != true, l.chapter == new.chapter, l.page == new.page,
+                      let s = l.start, let e = l.end else { return false }
+                return s < end && start < e
+            }
+            .sorted { $0.modifiedAt > $1.modifiedAt }
+        guard let keep = overlapping.first else { return nil }
+        var merged = new
+        merged.start = overlapping.compactMap(\.position.start).reduce(start, min)
+        merged.end = overlapping.compactMap(\.position.end).reduce(end, max)
+        let note = overlapping.map { $0.note.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+        Actions.update(keep, note: note, color: color, locator: merged, text: engine?.text(of: merged) ?? selection.text)
+        for other in overlapping.dropFirst() { Actions.remove(other) }
+        return keep
     }
 
     // MARK: - Progress
@@ -240,10 +298,13 @@ final class ReaderModel: ReaderEngineDelegate {
         guard !engine.isVisible(locator) else { return }
         lastSaved = (remote.locator, remote.modifiedAt)
         let page = engine.pageOf(locator)
-        Toasts.shared.show(page.map { "Continue on page \($0)?" } ?? "Continue at \(Int((remote.percent * 100).rounded()))%?",
-                           detail: "You read further on another device.", action: "Go", duration: .seconds(10)) { [weak self] in
-            self?.go(locator)
-        }
+        offer = ContinueOffer(locator: locator, label: page.map { "Continue on page \($0)?" } ?? "Continue at \(Int((remote.percent * 100).rounded()))%?")
+    }
+
+    func acceptOffer() {
+        guard let offer else { return }
+        self.offer = nil
+        go(offer.locator)
     }
 
     // MARK: - ReaderEngineDelegate
@@ -254,6 +315,8 @@ final class ReaderModel: ReaderEngineDelegate {
             holdPosition = false
         }
         self.position = position
+        // Once the offered page is showing, by any route, there's nothing left to offer.
+        if let offer, engine?.isVisible(offer.locator) == true { self.offer = nil }
         scheduleSave()
     }
 
@@ -279,8 +342,8 @@ final class ReaderModel: ReaderEngineDelegate {
         self.selection = selection
     }
 
-    func engineHighlight(_ selection: TextSelection, color: String, withNote: Bool) {
-        highlight(selection, color: color, withNote: withNote)
+    func engineHighlight(_ selection: TextSelection, withNote: Bool) {
+        highlight(selection, withNote: withNote)
     }
 
     func engineOpen(_ url: URL) {

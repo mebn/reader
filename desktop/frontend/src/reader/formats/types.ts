@@ -24,8 +24,13 @@ export interface ReflowDocument {
   metadata: BookMetadata;
   toc: TocEntry[];
   chapterCount: number;
-  /** Returns a fresh, sanitized copy of a chapter's content. */
+  /**
+   * Returns a fresh, sanitized copy of a chapter's content. It keeps the book's own classes
+   * and inline styles; the renderer strips them unless the book is shown in its original styles.
+   */
   loadChapter(index: number): Promise<DocumentFragment>;
+  /** The book's own CSS for a chapter, with its fonts and images resolved, if it has any. */
+  chapterStyles?(index: number): Promise<string>;
   /** Resolves a `data-href` produced by loadChapter. */
   resolveLink(href: string): LinkTarget | null;
   cover(): Promise<Blob | null>;

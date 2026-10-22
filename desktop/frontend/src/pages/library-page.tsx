@@ -129,7 +129,7 @@ export function LibraryPage() {
             {showBooks && (
               <section>
                 {tab === "all" && !noBooks && <SectionTitle>Books</SectionTitle>}
-                {noBooks ? ready && !(tab === "all" && anyNotes) && <Empty text={query ? "No books match" : "Drop books here"} /> : <LibraryGrid view={shown} />}
+                {noBooks ? ready && !(tab === "all" && anyNotes) && <Empty text={query ? (tab === "all" ? "Nothing matches" : "No books match") : "Drop books here"} /> : <LibraryGrid view={shown} />}
               </section>
             )}
 

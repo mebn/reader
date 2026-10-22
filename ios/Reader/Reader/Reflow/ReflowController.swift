@@ -34,7 +34,8 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     private let doc: ReflowDocument
     private let bookId: String
-    private let pager = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal, options: [.interPageSpacing: 0])
+    /// Pages curl from the corner like paper; the desktop app draws the same turn.
+    private let pager = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal, options: [.spineLocation: UIPageViewController.SpineLocation.min.rawValue])
 
     private var appearance: Appearance?
     private var annotations: [Annotation] = []
@@ -48,6 +49,8 @@ final class ReflowController: UIViewController, ReaderEngine {
     /// Where to go once the first layout is done.
     private var pendingLocator: Locator?
     private var hadSelection = false
+    private var curling = false
+    private var tapGesture: UITapGestureRecognizer!
 
     init(doc: ReflowDocument, bookId: String) {
         self.doc = doc
@@ -66,11 +69,22 @@ final class ReflowController: UIViewController, ReaderEngine {
         pager.didMove(toParent: self)
         pager.dataSource = self
         pager.delegate = self
+        // Taps are handled below, so a tap on a link or a highlight never turns the page.
+        for gesture in pager.gestureRecognizers where gesture is UITapGestureRecognizer { gesture.isEnabled = false }
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         tap.delegate = self
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
+        tapGesture = tap
+
+        // Selecting is done here rather than by the text views, whose gestures lose to page
+        // turns and taps: hold on a word and drag to select more. There's no double tap, so
+        // a tap turns the page at once.
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(selectWords(_:)))
+        hold.minimumPressDuration = 0.35
+        hold.delegate = self
+        view.addGestureRecognizer(hold)
     }
 
     override func viewDidLayoutSubviews() {
@@ -89,7 +103,10 @@ final class ReflowController: UIViewController, ReaderEngine {
         guard let layout = layouts[chapter] else { return nil }
         let chapterPages = layout.pageCount
         let fraction = Double(page) / Double(chapterPages)
-        let locator = Locator(chapter: chapter, fraction: fraction)
+        // The first character on the page pins the position exactly on any device; the
+        // fraction is for readers that don't know it.
+        let first = layout.text.domRange(layout.characterRange(page: page))?.start
+        let locator = Locator(chapter: chapter, fraction: fraction, start: first)
         let total = bookPages?.reduce(0, +)
         let before = bookPages?.prefix(chapter).reduce(0, +) ?? 0
         let bookPage = bookPages != nil ? before + page + 1 : nil
@@ -113,6 +130,7 @@ final class ReflowController: UIViewController, ReaderEngine {
     func setAnnotations(_ annotations: [Annotation]) {
         self.annotations = annotations.filter { $0.kind == .highlight }
         for layout in layouts.values { layout.setHighlights(highlights(in: layout.index)) }
+        for page in pages.values { page.redraw() }
     }
 
     func goTo(_ locator: Locator) {
@@ -142,7 +160,11 @@ final class ReflowController: UIViewController, ReaderEngine {
         let next = forward ? pageAfter(current.key) : pageBefore(current.key)
         guard let next else { return }
         let controller = pageController(next)
-        pager.setViewControllers([controller], direction: forward ? .forward : .reverse, animated: true) { [weak self] _ in
+        // A page curl can't start while another is in the air, so quick taps jump instead.
+        let animated = !curling
+        curling = curling || animated
+        pager.setViewControllers([controller], direction: forward ? .forward : .reverse, animated: animated) { [weak self] _ in
+            if animated { self?.curling = false }
             self?.settle(on: next)
         }
         settle(on: next)
@@ -166,8 +188,20 @@ final class ReflowController: UIViewController, ReaderEngine {
         return before + clamp(inChapter, 0, bookPages[target] - 1) + 1
     }
 
+    func text(of locator: Locator) -> String? {
+        guard let chapter = locator.chapter, let start = locator.start, let end = locator.end,
+              let layout = layouts[chapter], let range = layout.text.displayRange(domStart: start, domEnd: end) else { return nil }
+        return normalizedSelection((layout.storage.string as NSString).substring(with: range))
+    }
+
     func clearSelection() {
         for controller in pages.values { controller.clearSelection() }
+        pagerPan?.isEnabled = true
+    }
+
+    /// Dragging the page is off while text is selected, so dragging a selection handle can't turn it.
+    private var pagerPan: UIPanGestureRecognizer? {
+        pager.gestureRecognizers.lazy.compactMap { $0 as? UIPanGestureRecognizer }.first
     }
 
     /// Entries inside the current chapter count by their anchor's page, since one file
@@ -203,7 +237,8 @@ final class ReflowController: UIViewController, ReaderEngine {
     private func relayout(force: Bool = false) {
         let next = computeGeometry()
         guard next.size != .zero, force || next != geometry else { return }
-        let fraction = layouts[chapter].map { Double(page) / Double($0.pageCount) }
+        // Keeps the same text at the top of the page, not the same share of the chapter.
+        let here = position?.locator
         geometry = next
         layouts = [:]
         pages = [:]
@@ -214,7 +249,7 @@ final class ReflowController: UIViewController, ReaderEngine {
             pendingLocator = nil
             goTo(pending)
         } else {
-            goTo(Locator(chapter: chapter, fraction: fraction ?? 0))
+            goTo(here ?? Locator(chapter: chapter, fraction: 0))
         }
         if bookPages == nil { paginate() }
     }
@@ -328,32 +363,38 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     // MARK: - Interaction
 
-    fileprivate func selectionChanged(_ textView: UITextView, layout: ChapterLayout) {
-        let range = textView.selectedRange
-        guard range.length > 0, let dom = layout.text.domRange(range) else {
-            delegate?.engineSelected(nil)
-            return
-        }
-        let text = normalizedSelection((layout.storage.string as NSString).substring(with: range))
-        delegate?.engineSelected(text.isEmpty ? nil : TextSelection(locator: Locator(chapter: layout.index, start: dom.start, end: dom.end), text: text))
+    fileprivate func selectionChanged(_ range: NSRange?, layout: ChapterLayout) {
+        pagerPan?.isEnabled = range == nil
+        delegate?.engineSelected(range.flatMap { selection(layout, $0) })
     }
 
-    fileprivate func menu(for textView: UITextView, layout: ChapterLayout, range: NSRange, suggested: [UIMenuElement]) -> UIMenu? {
+    private func selection(_ layout: ChapterLayout, _ range: NSRange) -> TextSelection? {
         guard let dom = layout.text.domRange(range) else { return nil }
         let text = normalizedSelection((layout.storage.string as NSString).substring(with: range))
-        guard !text.isEmpty else { return UIMenu(children: suggested) }
-        let selection = TextSelection(locator: Locator(chapter: layout.index, start: dom.start, end: dom.end), text: text)
-        return UIMenu(children: highlightMenu(selection) + suggested)
+        return text.isEmpty ? nil : TextSelection(locator: Locator(chapter: layout.index, start: dom.start, end: dom.end), text: text)
+    }
+
+    fileprivate func menu(layout: ChapterLayout, range: NSRange) -> UIMenu? {
+        guard let selection = selection(layout, range) else { return nil }
+        let raw = (layout.storage.string as NSString).substring(with: range)
+        let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+            UIPasteboard.general.string = raw
+            self?.clearSelection()
+        }
+        let lookUp = UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+            self?.present(UIReferenceLibraryViewController(term: selection.text), animated: true)
+        }
+        return UIMenu(children: highlightMenu(selection) + [UIMenu(options: .displayInline, children: [copy, lookUp])])
     }
 
     /// Highlight and note, as on the desktop; a highlight's color is changed by tapping it.
     private func highlightMenu(_ selection: TextSelection) -> [UIMenuElement] {
         let highlight = UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { [weak self] _ in
-            self?.delegate?.engineHighlight(selection, color: "yellow", withNote: false)
+            self?.delegate?.engineHighlight(selection, withNote: false)
             self?.clearSelection()
         }
         let note = UIAction(title: "Add Note", image: UIImage(systemName: "note.text.badge.plus")) { [weak self] _ in
-            self?.delegate?.engineHighlight(selection, color: "yellow", withNote: true)
+            self?.delegate?.engineHighlight(selection, withNote: true)
             self?.clearSelection()
         }
         let search = UIAction(title: "Search Web", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
@@ -362,6 +403,26 @@ final class ReflowController: UIViewController, ReaderEngine {
             if let url = components.url { self?.delegate?.engineOpen(url) }
         }
         return [UIMenu(options: .displayInline, children: [highlight, note]), search]
+    }
+
+    /// Selects the word under the finger, then word by word up to wherever it is dragged.
+    @objc private func selectWords(_ gesture: UILongPressGestureRecognizer) {
+        guard let current = pager.viewControllers?.first as? ReflowPageController else { return }
+        let point = gesture.location(in: current.view)
+        switch gesture.state {
+        case .began:
+            guard current.beginSelecting(at: point) else { return }
+            pagerPan?.isEnabled = false
+            UISelectionFeedbackGenerator().selectionChanged()
+        case .changed:
+            current.extendSelecting(to: point)
+        case .ended:
+            current.endSelecting(showMenu: true)
+        case .cancelled, .failed:
+            current.endSelecting(showMenu: false)
+        default:
+            break
+        }
     }
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
@@ -425,19 +486,20 @@ extension ReflowController: UIPageViewControllerDataSource, UIPageViewController
 }
 
 extension ReflowController: UIGestureRecognizerDelegate {
-    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    /// Taps are only watched; selecting takes the touch for itself.
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { g === tapGesture }
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        hadSelection = (pager.viewControllers?.first as? ReflowPageController)?.hasSelection ?? false
+        if g === tapGesture { hadSelection = (pager.viewControllers?.first as? ReflowPageController)?.hasSelection ?? false }
         return true
     }
 }
 
 // MARK: - A page
 
-/// One screen of text: one or two pages of a chapter, each a text view on its own
-/// container of the chapter's layout.
-private final class ReflowPageController: UIViewController, UITextViewDelegate {
+/// One screen of text: one or two pages of a chapter, each drawn from its own container
+/// of the chapter's layout.
+private final class ReflowPageController: UIViewController {
     enum Hit {
         case highlight(String)
         case link(String)
@@ -448,7 +510,7 @@ private final class ReflowPageController: UIViewController, UITextViewDelegate {
     private let span: Int
     private let geometry: (origin: CGPoint, size: CGSize, gap: CGFloat)
     private weak var owner: ReflowController?
-    private var textViews: [UITextView] = []
+    private var pageViews: [PageTextView] = []
 
     init(key: PageKey, layout: ChapterLayout, span: Int, geometry: (CGPoint, CGSize, CGFloat), owner: ReflowController) {
         self.key = key
@@ -467,54 +529,293 @@ private final class ReflowPageController: UIViewController, UITextViewDelegate {
             let index = key.page + i
             guard layout.containers.indices.contains(index) else { break }
             let frame = CGRect(x: geometry.origin.x + CGFloat(i) * (geometry.size.width + geometry.gap), y: geometry.origin.y, width: geometry.size.width, height: geometry.size.height)
-            let textView = UITextView(frame: frame, textContainer: layout.containers[index])
-            textView.isEditable = false
-            textView.isSelectable = true
-            textView.isScrollEnabled = false
-            textView.backgroundColor = .clear
-            textView.textContainerInset = .zero
-            textView.delegate = self
-            textView.linkTextAttributes = [:]
-            textView.tintColor = UIColor.tintColor
-            view.addSubview(textView)
-            textViews.append(textView)
+            let page = PageTextView(frame: frame, layout: layout, container: layout.containers[index])
+            page.onSelectionChange = { [weak self, weak page] range in
+                guard let self, let page else { return }
+                // One selection at a time across facing pages.
+                if range != nil {
+                    for other in self.pageViews where other !== page { other.selection = nil }
+                }
+                self.owner?.selectionChanged(range, layout: self.layout)
+            }
+            page.menuProvider = { [weak self] range in
+                guard let self else { return nil }
+                return self.owner?.menu(layout: self.layout, range: range)
+            }
+            view.addSubview(page)
+            pageViews.append(page)
         }
     }
 
-    var hasSelection: Bool { textViews.contains { $0.selectedRange.length > 0 } }
+    var hasSelection: Bool { pageViews.contains { $0.selection != nil } }
 
     func clearSelection() {
-        for textView in textViews where textView.selectedRange.length > 0 {
-            textView.selectedRange = NSRange(location: 0, length: 0)
+        for page in pageViews where page.selection != nil { page.selection = nil }
+    }
+
+    /// Shows highlights changed in the layout.
+    func redraw() {
+        for page in pageViews { page.setNeedsDisplay() }
+    }
+
+    private var selecting: (page: PageTextView, anchor: NSRange)?
+
+    /// Starts a selection at the word under a point in this page; false when there's no text there.
+    func beginSelecting(at point: CGPoint) -> Bool {
+        guard let page = pageViews.first(where: { $0.frame.contains(point) }),
+              let index = page.characterIndex(at: convert(point, to: page), onText: true) else { return false }
+        let word = layout.word(at: index)
+        // Holding between words selects nothing, rather than a lone space.
+        guard (layout.storage.string as NSString).substring(with: word).contains(where: { !$0.isWhitespace }) else { return false }
+        clearSelection()
+        selecting = (page, word)
+        page.selection = word
+        return true
+    }
+
+    func extendSelecting(to point: CGPoint) {
+        guard let (page, anchor) = selecting, let index = page.characterIndex(at: convert(point, to: page), onText: false) else { return }
+        let word = layout.word(at: index)
+        let start = min(anchor.location, word.location), end = max(NSMaxRange(anchor), NSMaxRange(word))
+        let range = NSRange(location: start, length: end - start)
+        if range != page.selection {
+            page.selection = range
+            UISelectionFeedbackGenerator().selectionChanged()
         }
+    }
+
+    func endSelecting(showMenu: Bool) {
+        guard let (page, _) = selecting else { return }
+        selecting = nil
+        if showMenu { page.showMenu() }
+    }
+
+    private func convert(_ point: CGPoint, to page: UIView) -> CGPoint {
+        view.convert(point, to: page)
     }
 
     func hit(at point: CGPoint) -> Hit? {
-        for textView in textViews where textView.frame.contains(point) {
-            let local = CGPoint(x: point.x - textView.frame.minX, y: point.y - textView.frame.minY)
-            let manager = layout.layoutManager
-            let container = textView.textContainer
-            let glyph = manager.glyphIndex(for: local, in: container)
-            let rect = manager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
-            guard rect.insetBy(dx: -4, dy: -4).contains(local) else { return nil }
-            let index = manager.characterIndexForGlyph(at: glyph)
+        for page in pageViews where page.frame.contains(point) {
+            guard let index = page.characterIndex(at: convert(point, to: page), onText: true) else { return nil }
             if let id = layout.storage.attribute(.highlight, at: index, effectiveRange: nil) as? String { return .highlight(id) }
             if let link = layout.storage.attribute(.bookLink, at: index, effectiveRange: nil) as? String { return .link(link) }
         }
         return nil
     }
+}
 
-    func textViewDidChangeSelection(_ textView: UITextView) {
-        // One selection at a time across facing pages.
-        if textView.selectedRange.length > 0 {
-            for other in textViews where other !== textView && other.selectedRange.length > 0 {
-                other.selectedRange = NSRange(location: 0, length: 0)
+private extension ChapterLayout {
+    /// The word around a character, or the character itself when it isn't part of one.
+    func word(at index: Int) -> NSRange {
+        let string = storage.string as NSString
+        var found: NSRange?
+        string.enumerateSubstrings(in: string.paragraphRange(for: NSRange(location: index, length: 0)), options: [.byWords, .substringNotRequired]) { _, range, _, stop in
+            if NSLocationInRange(index, range) {
+                found = range
+                stop.pointee = true
             }
         }
-        owner?.selectionChanged(textView, layout: layout)
+        return found ?? string.rangeOfComposedCharacterSequence(at: index)
+    }
+}
+
+/// A page of a chapter, drawn straight from the chapter's layout, with its own selection.
+/// UITextView can't select anything past the first container of a shared layout, so
+/// selecting, its handles and its menu are done here.
+private final class PageTextView: UIView, UIEditMenuInteractionDelegate {
+    let layout: ChapterLayout
+    let container: NSTextContainer
+    var onSelectionChange: ((NSRange?) -> Void)?
+    var menuProvider: ((NSRange) -> UIMenu?)?
+
+    var selection: NSRange? {
+        didSet {
+            guard selection != oldValue else { return }
+            if selection == nil { menu.dismissMenu() }
+            updateSelection()
+            onSelectionChange?(selection)
+        }
     }
 
-    func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        owner?.menu(for: textView, layout: layout, range: range, suggested: suggestedActions)
+    private let selectionLayer = CAShapeLayer()
+    private let startHandle = SelectionHandle(atStart: true)
+    private let endHandle = SelectionHandle(atStart: false)
+    private lazy var menu = UIEditMenuInteraction(delegate: self)
+
+    init(frame: CGRect, layout: ChapterLayout, container: NSTextContainer) {
+        self.layout = layout
+        self.container = container
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        contentMode = .redraw
+        layer.addSublayer(selectionLayer)
+        addInteraction(menu)
+        for handle in [startHandle, endHandle] {
+            handle.isHidden = true
+            handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragHandle(_:))))
+            addSubview(handle)
+        }
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var accessibilityLabel: String? {
+        get { (layout.storage.string as NSString).substring(with: characterRange) }
+        set {}
+    }
+
+    private var glyphRange: NSRange { layout.layoutManager.glyphRange(for: container) }
+    private var characterRange: NSRange { layout.layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil) }
+
+    override func draw(_ rect: CGRect) {
+        let glyphs = glyphRange
+        layout.layoutManager.drawBackground(forGlyphRange: glyphs, at: .zero)
+        layout.layoutManager.drawGlyphs(forGlyphRange: glyphs, at: .zero)
+    }
+
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        updateSelection()
+    }
+
+    /// The character under a point in this view, or nearest to it unless `onText`.
+    func characterIndex(at point: CGPoint, onText: Bool) -> Int? {
+        let manager = layout.layoutManager
+        guard glyphRange.length > 0 else { return nil }
+        let glyph = manager.glyphIndex(for: point, in: container)
+        if onText {
+            let rect = manager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+            guard rect.insetBy(dx: -6, dy: -6).contains(point) else { return nil }
+        }
+        let index = manager.characterIndexForGlyph(at: glyph)
+        return index < layout.storage.length ? index : nil
+    }
+
+    /// The gap between characters nearest a point, for dragging a handle.
+    private func boundary(at point: CGPoint) -> Int {
+        let manager = layout.layoutManager
+        var fraction: CGFloat = 0
+        let index = manager.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: &fraction)
+        let chars = characterRange
+        return min(max(index + (fraction > 0.5 ? 1 : 0), chars.location), NSMaxRange(chars))
+    }
+
+    /// The selection's rects, a line each.
+    private func lineRects(_ range: NSRange) -> [CGRect] {
+        let manager = layout.layoutManager
+        let glyphs = NSIntersectionRange(manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil), glyphRange)
+        guard glyphs.length > 0 else { return [] }
+        var rects: [CGRect] = []
+        manager.enumerateLineFragments(forGlyphRange: glyphs) { _, used, _, lineGlyphs, _ in
+            let onLine = NSIntersectionRange(lineGlyphs, glyphs)
+            var rect = manager.boundingRect(forGlyphRange: onLine, in: self.container)
+            rect.size.width = min(rect.width, used.maxX - rect.minX)
+            rect.origin.y = used.minY
+            rect.size.height = used.height
+            if rect.width > 0 { rects.append(rect) }
+        }
+        return rects
+    }
+
+    private func updateSelection() {
+        guard let selection, selection.length > 0 else {
+            selectionLayer.path = nil
+            startHandle.isHidden = true
+            endHandle.isHidden = true
+            return
+        }
+        let rects = lineRects(selection)
+        let path = UIBezierPath()
+        for rect in rects { path.append(UIBezierPath(rect: rect)) }
+        selectionLayer.path = path.cgPath
+        selectionLayer.fillColor = tintColor.withAlphaComponent(0.28).cgColor
+        startHandle.tintColor = tintColor
+        endHandle.tintColor = tintColor
+        if let first = rects.first, let last = rects.last {
+            startHandle.place(at: CGPoint(x: first.minX, y: first.minY), lineHeight: first.height)
+            endHandle.place(at: CGPoint(x: last.maxX, y: last.minY), lineHeight: last.height)
+        }
+        startHandle.isHidden = rects.isEmpty
+        endHandle.isHidden = rects.isEmpty
+    }
+
+    @objc private func dragHandle(_ gesture: UIPanGestureRecognizer) {
+        guard let selection, let handle = gesture.view as? SelectionHandle else { return }
+        switch gesture.state {
+        case .began:
+            menu.dismissMenu()
+        case .changed:
+            // Aim at the middle of the line the finger is on, not the handle's knob.
+            var point = gesture.location(in: self)
+            point.y += handle.atStart ? handle.lineHeight / 2 : -handle.lineHeight / 2
+            let at = boundary(at: point)
+            var start = selection.location, end = NSMaxRange(selection)
+            if handle.atStart { start = min(at, end - 1) } else { end = max(at, start + 1) }
+            let range = NSRange(location: start, length: end - start)
+            if range != selection {
+                self.selection = range
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+        case .ended, .cancelled:
+            showMenu()
+        default:
+            break
+        }
+    }
+
+    func showMenu() {
+        guard let selection, let rect = lineRects(selection).first else { return }
+        menu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: rect.midX, y: rect.minY)))
+    }
+
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        guard let selection else { return nil }
+        return menuProvider?(selection)
+    }
+
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, targetRectFor configuration: UIEditMenuConfiguration) -> CGRect {
+        guard let selection else { return .null }
+        return lineRects(selection).reduce(CGRect.null) { $0.union($1) }
+    }
+}
+
+/// A selection handle: a bar along the line with a knob above the start or below the end,
+/// in a bigger box to grab.
+private final class SelectionHandle: UIView {
+    let atStart: Bool
+    private(set) var lineHeight: CGFloat = 20
+    private let bar = UIView()
+    private let knob = UIView()
+    private static let knobSize: CGFloat = 10
+    private static let grab: CGFloat = 44
+
+    init(atStart: Bool) {
+        self.atStart = atStart
+        super.init(frame: .zero)
+        knob.layer.cornerRadius = Self.knobSize / 2
+        addSubview(bar)
+        addSubview(knob)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        bar.backgroundColor = tintColor
+        knob.backgroundColor = tintColor
+    }
+
+    /// Puts the bar at a line's edge, `top` being the line's top.
+    func place(at top: CGPoint, lineHeight: CGFloat) {
+        self.lineHeight = lineHeight
+        let height = lineHeight + Self.knobSize
+        let box = max(Self.grab, height)
+        frame = CGRect(x: top.x - Self.grab / 2, y: top.y - (atStart ? Self.knobSize : 0) - (box - height) / 2, width: Self.grab, height: box)
+        let barTop = (box - height) / 2 + (atStart ? Self.knobSize : 0)
+        bar.frame = CGRect(x: Self.grab / 2 - 1, y: barTop, width: 2, height: lineHeight)
+        knob.frame = CGRect(x: (Self.grab - Self.knobSize) / 2, y: atStart ? barTop - Self.knobSize + 1 : barTop + lineHeight - 1, width: Self.knobSize, height: Self.knobSize)
     }
 }

@@ -77,6 +77,35 @@ enum API {
         return (r.token, r.user)
     }
 
+    private struct DeviceBody: Encodable {
+        var device: DeviceInfo
+    }
+
+    private struct GoogleStart: Decodable {
+        var url: URL
+        var state: String
+        var secret: String
+    }
+
+    /// The poll answers with a session, or with a status while the person hasn't finished.
+    private struct GooglePoll: Decodable {
+        var token: String?
+        var user: User?
+    }
+
+    /// Starts Google sign-in: open `url` in a browser, then poll with `state` and `secret`.
+    static func googleStart(server: String, device: DeviceInfo) async throws -> (url: URL, state: String, secret: String) {
+        let r: GoogleStart = try await request(Session(serverUrl: server, token: "", email: ""), "POST", "/auth/google/start", json: DeviceBody(device: device))
+        return (r.url, r.state, r.secret)
+    }
+
+    /// The session once the person has signed in with Google; nil while they haven't.
+    static func googlePoll(server: String, state: String, secret: String) async throws -> (token: String, user: User)? {
+        let r: GooglePoll = try await request(Session(serverUrl: server, token: "", email: ""), "GET", "/auth/google/poll?state=\(escape(state))&secret=\(escape(secret))")
+        guard let token = r.token, let user = r.user else { return nil }
+        return (token, user)
+    }
+
     static func devices(_ s: Session) async throws -> [Device] {
         try await request(s, "GET", "/devices")
     }

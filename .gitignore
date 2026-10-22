@@ -2,3 +2,6 @@
 backend/data/
 
 .DS_Store
+
+# iOS builds from make
+ios/build/

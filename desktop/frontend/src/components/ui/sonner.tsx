@@ -5,7 +5,7 @@ const Toaster = ({ dark, ...props }: ToasterProps & { dark: boolean }) => {
     <Sonner
       theme={dark ? "dark" : "light"}
       className="toaster group"
-      position="bottom-center"
+      position="bottom-left"
       style={
         {
           "--normal-bg": "var(--popover)",

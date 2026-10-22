@@ -96,6 +96,8 @@ final class ComicController: UIViewController, ReaderEngine {
     func hasReached(_ entry: TocEntry) -> Bool { (entry.page ?? .max) <= (position?.locator.page ?? 0) }
     func clearSelection() {}
 
+    func text(of locator: Locator) -> String? { nil }
+
     private func align(_ index: Int) -> Int {
         let clamped = min(max(0, index), max(0, doc.pages.count - 1))
         return span == 2 ? clamped - clamped % 2 : clamped

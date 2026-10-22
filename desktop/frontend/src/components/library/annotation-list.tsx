@@ -97,7 +97,7 @@ export function AnnotationList({ groups }: { groups: AnnotationGroup[] }) {
                   type="button"
                   onClick={() => removeAnnotation(a)}
                   aria-label="Remove"
-                  className="absolute top-2 right-2 rounded px-1.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                  className="absolute top-2 right-2 rounded px-1.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
                 >
                   ×
                 </button>

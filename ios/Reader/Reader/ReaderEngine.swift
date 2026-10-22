@@ -39,6 +39,8 @@ protocol ReaderEngine: AnyObject {
     /// The 1-based book page a locator falls on, or nil while pages are still being counted.
     func pageOf(_ locator: Locator) -> Int?
     func clearSelection()
+    /// The text a locator covers, as a selection would give it; nil when it can't be read.
+    func text(of locator: Locator) -> String?
     /// Whether the reader is at or past a contents entry.
     func hasReached(_ entry: TocEntry) -> Bool
 }
@@ -51,7 +53,7 @@ protocol ReaderEngineDelegate: AnyObject {
     func engineTapped(atFraction x: CGFloat)
     func engineTappedAnnotation(_ id: String)
     func engineSelected(_ selection: TextSelection?)
-    func engineHighlight(_ selection: TextSelection, color: String, withNote: Bool)
+    func engineHighlight(_ selection: TextSelection, withNote: Bool)
     func engineOpen(_ url: URL)
 }
 

@@ -1,4 +1,5 @@
-import { motion } from "motion/react";
+import { ChevronLeft } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import type { ReaderSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { Position } from "@/reader";
@@ -42,5 +43,39 @@ export function ReaderHeader({ text, hidden }: { text: string | undefined; hidde
     <motion.div initial={false} animate={{ opacity: hidden ? 0 : 0.45 }} transition={{ duration: 0.2 }} className={`${LINE} top-0 h-(--titlebar-height)`}>
       <span className="truncate">{text}</span>
     </motion.div>
+  );
+}
+
+const CORNER =
+  "pointer-events-auto flex h-8 items-center gap-1 rounded-md px-2 text-[11px] font-medium tracking-wide text-(--reader-fg)/55 transition-colors hover:text-(--reader-fg) focus-visible:text-(--reader-fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--reader-fg)/30";
+
+/**
+ * The way back to where reading was before going to a highlight, note or bookmark, in the
+ * bottom left, and the offer to continue where another device got to in the bottom right.
+ */
+export function ReaderJumps({ back, offer, onBack, onContinue }: { back: string | null; offer: string | null; onBack(): void; onContinue(): void }) {
+  const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } };
+  return (
+    <>
+      <div className="pointer-events-none absolute bottom-2 left-3 z-20 flex items-center">
+        <AnimatePresence initial={false}>
+          {back && (
+            <motion.button key="back" type="button" className={CORNER} onClick={onBack} {...fade}>
+              <ChevronLeft className="size-3.5" />
+              {back}
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+      <div className="pointer-events-none absolute right-3 bottom-2 z-20 flex items-center">
+        <AnimatePresence initial={false}>
+          {offer && (
+            <motion.button key="offer" type="button" className={CORNER} onClick={onContinue} title="You read further on another device" {...fade}>
+              {offer}
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }

@@ -14,6 +14,8 @@ export interface ReaderSettings {
   sideMargin: number;
   align: "left" | "justify";
   hyphenate: boolean;
+  /** Shows a book with its own styles (headings, alignment, fonts) instead of the reader's. */
+  originalStyles: boolean;
   pages: 1 | 2;
   /** What the header shows: in the toolbar, and above the text once the toolbar hides. */
   headerTitle: boolean;
@@ -57,6 +59,7 @@ export const DEFAULT_READER: ReaderSettings = {
   sideMargin: 20,
   align: "justify",
   hyphenate: true,
+  originalStyles: false,
   pages: 1,
   headerTitle: true,
   headerAuthor: false,
@@ -153,5 +156,5 @@ export function parseSettings<T>(data: string | undefined, defaults: T): Partial
 
 /** Settings that change the text layout, used to cache page counts. */
 export function layoutKey(s: ReaderSettings, width: number, height: number) {
-  return [s.font, s.fontSize, s.lineHeight, s.weight, s.tracking, s.paragraphSpacing, s.sideMargin, s.align, s.hyphenate, s.pages, width, height].join("|");
+  return [s.font, s.fontSize, s.lineHeight, s.weight, s.tracking, s.paragraphSpacing, s.sideMargin, s.align, s.hyphenate, s.originalStyles, s.pages, width, height].join("|");
 }

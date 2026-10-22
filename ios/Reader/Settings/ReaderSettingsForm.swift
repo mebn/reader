@@ -78,11 +78,20 @@ struct LayoutSettingsSection: View {
             Text("Left").tag(TextAlign.left)
             Text("Justify").tag(TextAlign.justify)
         }
+        PagesPicker(settings: $settings)
+        Toggle("Hyphenation", isOn: $settings.hyphenate)
+    }
+}
+
+/// One page at a time, or two facing pages on a wide screen.
+struct PagesPicker: View {
+    @Binding var settings: ReaderSettings
+
+    var body: some View {
         Picker("Pages", selection: $settings.pages) {
             Text("One").tag(1)
             Text("Two").tag(2)
         }
-        Toggle("Hyphenation", isOn: $settings.hyphenate)
     }
 }
 

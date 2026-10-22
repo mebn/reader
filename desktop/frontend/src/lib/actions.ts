@@ -53,7 +53,11 @@ export async function importFiles(files: File[], folderId: string | null) {
   for (const file of supported) {
     try {
       const format = formatFromName(file.name)!;
-      const info = await readBookInfo(file, format, file.name);
+      // The parsers' own errors (such as a zip library's) mean nothing to people.
+      const info = await readBookInfo(file, format, file.name).catch((err) => {
+        console.error(err);
+        throw new Error(`It can't be read as ${format.toUpperCase()}; the file may be damaged.`);
+      });
       const book: Book = {
         id: crypto.randomUUID(),
         modifiedAt: Date.now(),
@@ -107,8 +111,41 @@ export function addAnnotation(annotation: Omit<Annotation, "id" | "modifiedAt">)
   return sync.put<Annotation>("annotations", { ...annotation, id: crypto.randomUUID(), modifiedAt: 0 });
 }
 
-export function updateAnnotation(annotation: Annotation, patch: Partial<Pick<Annotation, "note" | "color">>) {
+export function updateAnnotation(annotation: Annotation, patch: Partial<Pick<Annotation, "note" | "color" | "locator" | "text">>) {
   sync.put("annotations", { ...annotation, ...patch });
+}
+
+/**
+ * Highlights a selection. One that overlaps highlights already there grows the newest of
+ * them to cover it all, keeping its color and every note, instead of piling another on top.
+ * `textOf` gives the text of the combined range.
+ */
+export function highlightSelection(
+  bookId: string,
+  existing: Annotation[],
+  selection: { locator: Locator; text: string },
+  color: string,
+  textOf: (locator: Locator) => string | null,
+): Annotation {
+  const { locator } = selection;
+  const overlapping = existing
+    .filter((a) => a.kind === "highlight" && !a.deleted)
+    .filter((a) => {
+      const l = JSON.parse(a.locator) as Locator;
+      return l.chapter === locator.chapter && l.page === locator.page && l.start !== undefined && l.end !== undefined && l.start < locator.end! && locator.start! < l.end;
+    })
+    .sort((a, b) => b.modifiedAt - a.modifiedAt);
+  if (!overlapping.length || locator.start === undefined || locator.end === undefined) {
+    return addAnnotation({ bookId, kind: "highlight", locator: JSON.stringify(locator), text: selection.text, note: "", color, label: "" });
+  }
+  const ranges = [locator, ...overlapping.map((a) => JSON.parse(a.locator) as Locator)];
+  const merged = { ...locator, start: Math.min(...ranges.map((l) => l.start!)), end: Math.max(...ranges.map((l) => l.end!)) };
+  const [keep, ...rest] = overlapping;
+  const note = overlapping.map((a) => a.note.trim()).filter(Boolean).join("\n\n");
+  const updated = { ...keep, locator: JSON.stringify(merged), text: textOf(merged) ?? selection.text, note };
+  sync.put("annotations", updated);
+  rest.forEach(removeAnnotation);
+  return updated;
 }
 
 export function removeAnnotation(annotation: Annotation) {

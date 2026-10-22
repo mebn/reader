@@ -28,7 +28,9 @@ struct ContentsSheet: View {
                         ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
                     }
                     .pickerStyle(.segmented)
-                    .fixedSize()
+                    // A set width keeps the segments equal; sized to their labels, the bolder
+                    // selected one would resize the control and shift the whole bar on every tap.
+                    .frame(width: 280)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(role: .close) { dismiss() }
@@ -68,7 +70,7 @@ struct ContentsSheet: View {
         List {
             ForEach(list.sorted { $0.position.sortKey < $1.position.sortKey }) { a in
                 Button {
-                    model.go(a.position)
+                    model.go(toAnnotation: a.position)
                     dismiss()
                 } label: {
                     AnnotationRow(annotation: a)
@@ -129,14 +131,24 @@ struct AnnotationRow: View {
 struct AppearanceSheet: View {
     let model: ReaderModel
     var appDark: Bool
-    @State private var tab = Tab.text
+    @Environment(\.dismiss) private var dismiss
+    @State private var tab: Tab
 
+    init(model: ReaderModel, appDark: Bool) {
+        self.model = model
+        self.appDark = appDark
+        _tab = State(initialValue: model.isFixed ? .page : .text)
+    }
+
+    /// Header and footer go under Layout: a fourth tab doesn't fit beside the close button.
     enum Tab: String, CaseIterable {
         case text = "Text"
         case page = "Page"
         case layout = "Layout"
-        case headerFooter = "Header & Footer"
     }
+
+    /// Fixed pages, as in a PDF, have no text to set.
+    private var tabs: [Tab] { model.isFixed ? [.page, .layout] : Tab.allCases }
 
     private var settings: Binding<ReaderSettings> {
         Binding(get: { model.settings }, set: { next in model.change { $0 = next } })
@@ -156,38 +168,55 @@ struct AppearanceSheet: View {
                 case .page:
                     Section { PageSettingsSection(settings: settings, dark: dark) }
                 case .layout:
-                    Section { LayoutSettingsSection(settings: settings) }
-                case .headerFooter:
+                    Section {
+                        if model.isFixed {
+                            PagesPicker(settings: settings)
+                        } else {
+                            LayoutSettingsSection(settings: settings)
+                        }
+                    }
                     Section("Header") { HeaderSettingsSection(settings: settings) }
                     Section("Footer") { FooterSettingsSection(settings: settings) }
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .safeAreaBar(edge: .top) {
-                Picker("Section", selection: $tab) {
-                    ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+                Section {} footer: {
+                    Text(model.hasOverride ? "This book has settings of its own." : "Changes apply to this book.")
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 6)
             }
+            // Rows on plain glass would show the page through them.
+            .scrollContentBackground(.visible)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Section", selection: $tab) {
+                        ForEach(tabs, id: \.self) { Text($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    // A set width keeps the segments equal; sized to their labels, the bolder
+                    // selected one would resize the control and shift the whole bar on every tap.
+                    .frame(width: 280)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(role: .close) { dismiss() }
+                }
+            }
+            // Not a bottom toolbar: its glass keeps the old scheme when the page switches
+            // between light and dark. Always there, so the sheet doesn't jump on the first change.
             .safeAreaBar(edge: .bottom) {
                 HStack {
-                    if model.hasOverride {
-                        Button("Use defaults") { model.useDefaults() }
-                            .buttonStyle(.glass)
-                        Spacer()
-                        Button("Use for all books") { model.makeDefault() }
-                            .buttonStyle(.glassProminent)
-                    } else {
-                        Text("Changes apply to this book.").font(.footnote).foregroundStyle(.secondary)
-                        Spacer()
-                    }
+                    Button("Use defaults") { model.useDefaults() }
+                        .buttonStyle(.glass)
+                    Spacer()
+                    Button("Use for all books") { model.makeDefault() }
+                        .buttonStyle(.glassProminent)
+                        // The tint is near white in dark mode, where the default white label vanishes.
+                        .foregroundStyle(Color(uiColor: .systemBackground))
                 }
+                .controlSize(.large)
+                .disabled(!model.hasOverride)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 10)
+                .padding(.bottom, 8)
             }
-            .toolbarVisibility(.hidden, for: .navigationBar)
         }
     }
 }

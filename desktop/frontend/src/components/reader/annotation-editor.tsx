@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { removeAnnotation, updateAnnotation } from "@/lib/actions";
 import type { Annotation } from "@/lib/types";
@@ -9,9 +9,18 @@ export function AnnotationEditor({ annotation, focusNote, onDone }: { annotation
   const [note, setNote] = useState(annotation.note);
   useEffect(() => setNote(annotation.note), [annotation.id, annotation.note]);
 
+  // The note last saved, so closing right after a save doesn't save it twice.
+  const saved = useRef(annotation.note);
+  useEffect(() => void (saved.current = annotation.note), [annotation.note]);
   const saveNote = () => {
-    if (note !== annotation.note) updateAnnotation(annotation, { note });
+    if (note === saved.current) return;
+    saved.current = note;
+    updateAnnotation(annotation, { note });
   };
+  // A press outside can close the editor before the note field has lost focus.
+  const latestSave = useRef(saveNote);
+  latestSave.current = saveNote;
+  useEffect(() => () => latestSave.current(), []);
 
   return (
     <div className="grid w-64 gap-2 p-1">
@@ -22,6 +31,7 @@ export function AnnotationEditor({ annotation, focusNote, onDone }: { annotation
           size="xs"
           className="text-muted-foreground hover:text-destructive"
           onClick={() => {
+            saved.current = note;
             removeAnnotation(annotation);
             onDone();
           }}

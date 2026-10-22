@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { saveProgress } from "@/lib/actions";
 import type { Annotation, Book, Locator } from "@/lib/types";
 import { platform } from "@/platform";
@@ -15,6 +14,13 @@ const SAVE_DELAY = 800;
 const MAX_QUEUED_TURNS = 8;
 
 type Status = { state: "loading" } | { state: "ready" } | { state: "error"; message: string };
+
+/** Where another device read up to, offered while it's ahead of this one. */
+export interface ContinueOffer {
+  locator: Locator;
+  label: string;
+}
+
 
 interface EngineOptions {
   book: Book;
@@ -36,6 +42,10 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
   const lastSaved = useRef<{ locator: string; at: number }>({ locator: "", at: 0 });
   // Opened at a highlight or note: only a page turn or a jump makes it the reading position.
   const holdPosition = useRef(false);
+  // Where reading was before going to a highlight, note or bookmark, to get back to. Going
+  // to another one keeps the first place; page turns, contents and links don't touch it.
+  const [returnTo, setReturnTo] = useState<Locator | null>(null);
+  const [offer, setOffer] = useState<ContinueOffer | null>(null);
 
   const latest = useRef({ book, appearance, annotations, onAnnotationClick, canInteract });
   latest.current = { book, appearance, annotations, onAnnotationClick, canInteract };
@@ -68,6 +78,9 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
       lastSaved.current = { locator: saved?.locator ?? "", at: saved?.modifiedAt ?? 0 };
       const jump = useBookTransition.getState().takeJump(book.id);
       holdPosition.current = Boolean(jump);
+      // Opened at a highlight or note, going back returns to where reading had got to.
+      setReturnTo(jump && saved ? (JSON.parse(saved.locator) as Locator) : null);
+      setOffer(null);
       await instance.goTo(jump ?? (saved ? (JSON.parse(saved.locator) as Locator) : {}));
       if (cancelled) return;
 
@@ -151,11 +164,7 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
         if (renderer.current.isVisible(locator)) return;
         lastSaved.current = { locator: remote.locator, at: remote.modifiedAt };
         const page = renderer.current.pageOf(locator);
-        toast(page ? `Continue on page ${page}?` : `Continue at ${Math.round(remote.percent * 100)}%?`, {
-          description: "You read further on another device.",
-          action: { label: "Go", onClick: () => void renderer.current?.goTo(locator) },
-          duration: 10_000,
-        });
+        setOffer({ locator, label: page ? `Continue on page ${page}?` : `Continue at ${Math.round(remote.percent * 100)}%?` });
       }),
     [book.id],
   );
@@ -181,7 +190,13 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
     [container],
   );
 
-  const goTo = useCallback(async (target: Locator | TocEntry) => {
+  // Once the offered page is showing, by any route, there's nothing left to offer.
+  useEffect(() => {
+    if (offer && position && renderer.current?.isVisible(offer.locator)) setOffer(null);
+  }, [offer, position]);
+
+  /** Shows a place with a quick fade, without remembering anything. */
+  const move = useCallback(async (target: Locator | TocEntry) => {
     const r = renderer.current;
     if (!r) return;
     holdPosition.current = false;
@@ -194,5 +209,27 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
     await fadeIn.finished;
   }, []);
 
-  return { status, position, toc, renderer, turn, goTo };
+  /** Goes to a contents entry, or to a highlight, note or bookmark, remembering where reading was for those. */
+  const goTo = useCallback(
+    async (target: Locator | TocEntry) => {
+      const here = renderer.current?.position.locator;
+      if (!("label" in target) && here) setReturnTo((first) => first ?? here);
+      await move(target);
+    },
+    [move],
+  );
+
+  const goBack = useCallback(() => {
+    if (!returnTo) return;
+    setReturnTo(null);
+    void move(returnTo);
+  }, [move, returnTo]);
+
+  const acceptOffer = useCallback(() => {
+    if (!offer) return;
+    setOffer(null);
+    void move(offer.locator);
+  }, [offer, move]);
+
+  return { status, position, toc, renderer, turn, goTo, returnTo, goBack, offer, acceptOffer };
 }

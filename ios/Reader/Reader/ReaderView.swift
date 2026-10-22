@@ -66,6 +66,7 @@ struct ReaderView: View {
 
             RunningHeader(header: header(book), visible: !model.chrome && model.status == .ready, color: background.text)
             RunningFooter(model: model, color: background.text)
+            CornerButtons(model: model, color: background.text)
 
             if model.chrome || model.status != .ready {
                 ReaderToolbar(model: model, header: header(book), onClose: onClose)
@@ -101,19 +102,20 @@ struct ReaderView: View {
         .sheet(isPresented: $model.showContents) {
             ContentsSheet(model: model)
                 .presentationDetents([.medium, .large])
-                .environment(\.colorScheme, scheme)
+                .preferredColorScheme(scheme)
         }
+        // Each sheet takes the page's scheme as its own, so its glass and buttons switch too
+        // when the page is switched between light and dark from inside it.
         .sheet(isPresented: $model.showAppearance) {
             AppearanceSheet(model: model, appDark: appDark)
                 .presentationDetents([.medium, .large])
-                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                .environment(\.colorScheme, scheme)
+                .preferredColorScheme(scheme)
         }
         .sheet(item: Binding(get: { model.editing.map(EditingID.init) }, set: { model.editing = $0?.id })) { item in
             if let annotation = library.annotations[item.id] {
                 AnnotationEditor(annotation: annotation, focusNote: model.focusNote)
                     .presentationDetents([.height(300), .large])
-                    .environment(\.colorScheme, scheme)
+                    .preferredColorScheme(scheme)
             }
         }
         .onChange(of: library.progress[bookId]?.modifiedAt) { model.remoteProgressChanged() }
@@ -305,6 +307,53 @@ private struct RunningHeader: View {
 }
 
 /// Whatever the settings ask for, under the text.
+/// Quiet buttons above the footer: back to where reading was before going to a highlight,
+/// note or bookmark on the left, and the offer to continue where another device got to on
+/// the right.
+private struct CornerButtons: View {
+    let model: ReaderModel
+    var color: Color
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                if let label = model.returnLabel {
+                    Button { model.goBack() } label: {
+                        Label(label, systemImage: "chevron.left").labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(Quiet(color: color))
+                    .transition(.opacity)
+                }
+                Spacer()
+                if let offer = model.offer {
+                    Button(offer.label) { model.acceptOffer() }
+                        .buttonStyle(Quiet(color: color))
+                        .accessibilityHint("You read further on another device")
+                        .transition(.opacity)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 26)
+        }
+        .animation(.easeOut(duration: 0.2), value: model.offer)
+        .animation(.easeOut(duration: 0.2), value: model.returnTo)
+    }
+
+    private struct Quiet: ButtonStyle {
+        var color: Color
+
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(.caption.weight(.medium))
+                .foregroundStyle(color.opacity(configuration.isPressed ? 0.9 : 0.6))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(.rect)
+        }
+    }
+}
+
 private struct RunningFooter: View {
     let model: ReaderModel
     var color: Color

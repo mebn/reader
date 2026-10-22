@@ -90,22 +90,39 @@ final class ChapterLayout {
 /// Draws highlights as soft rounded marks behind the text, with a dot after ones that
 /// carry a note.
 final class HighlightLayoutManager: NSLayoutManager {
+    /// Where the container being drawn sits, which the rects below don't say.
+    private var drawingOrigin = CGPoint.zero
+
     override func fillBackgroundRectArray(_ rectArray: UnsafePointer<CGRect>, count rectCount: Int, forCharacterRange charRange: NSRange, color: UIColor) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
-        let font = textStorage?.attribute(.font, at: charRange.location, effectiveRange: nil) as? UIFont
+        guard let context = UIGraphicsGetCurrentContext(), let storage = textStorage else { return }
+        let font = storage.attribute(.font, at: charRange.location, effectiveRange: nil) as? UIFont
         let height = (font?.lineHeight ?? 20) * 1.08
+        // The rects can cover several whole lines at once, so marks are made line by line
+        // rather than from them, and only where they fall inside the rects being filled.
+        let rects = (0..<rectCount).map { rectArray[$0] }
+        let glyphs = glyphRange(forCharacterRange: charRange, actualCharacterRange: nil)
         context.saveGState()
         color.setFill()
-        for i in 0..<rectCount {
-            let rect = rectArray[i]
+        enumerateLineFragments(forGlyphRange: glyphs) { _, usedRect, container, lineGlyphs, _ in
+            let onLine = NSIntersectionRange(lineGlyphs, glyphs)
+            guard onLine.length > 0 else { return }
+            var span = self.boundingRect(forGlyphRange: onLine, in: container).offsetBy(dx: self.drawingOrigin.x, dy: self.drawingOrigin.y)
+            // A line's trailing space or break isn't marked.
+            span.size.width = min(span.width, usedRect.maxX + self.drawingOrigin.x - span.minX)
+            // Rects can touch the next line too; each line is marked from its own rect only.
+            guard span.width > 0, rects.contains(where: { $0.contains(CGPoint(x: span.midX, y: span.midY)) }) else { return }
             // The line box is taller than the type, which sits centered in it; the mark hugs the letters.
-            let mark = CGRect(x: rect.minX - 1, y: rect.midY - height / 2, width: rect.width + 2, height: height)
+            let midY = usedRect.midY + self.drawingOrigin.y
+            // Overlapping marks would show darker stripes where lines meet.
+            let markHeight = min(height, usedRect.height - 2)
+            let mark = CGRect(x: span.minX - 1, y: midY - markHeight / 2, width: span.width + 2, height: markHeight)
             UIBezierPath(roundedRect: mark, cornerRadius: 3).fill()
         }
         context.restoreGState()
     }
 
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+        drawingOrigin = origin
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
         guard let storage = textStorage else { return }
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)

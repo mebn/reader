@@ -169,6 +169,12 @@ final class PdfController: UIViewController, ReaderEngine {
 
     func clearSelection() { pdfView.clearSelection() }
 
+    func text(of locator: Locator) -> String? {
+        guard let index = locator.page, let start = locator.start, let end = locator.end,
+              let text = doc.page(at: index)?.string as NSString?, start <= end, end <= text.length else { return nil }
+        return normalizedSelection(text.substring(with: NSRange(location: start, length: end - start)))
+    }
+
     // MARK: - Selection and taps
 
     private func emit() {

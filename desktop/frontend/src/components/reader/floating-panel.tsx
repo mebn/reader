@@ -19,7 +19,7 @@ interface FloatingPanelProps {
 }
 
 /** Drops the click that ends the current press, wherever it lands. */
-function swallowNextClick() {
+export function swallowNextClick() {
   const stop = (e: MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
