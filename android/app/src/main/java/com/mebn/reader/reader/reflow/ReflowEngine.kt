@@ -38,6 +38,7 @@ import com.mebn.reader.formats.TocEntry
 import com.mebn.reader.model.Annotation
 import com.mebn.reader.model.AnnotationKind
 import com.mebn.reader.model.Locator
+import com.mebn.reader.model.PageTurn
 import com.mebn.reader.reader.Appearance
 import com.mebn.reader.reader.PageGestures
 import com.mebn.reader.reader.PageTurner
@@ -153,8 +154,10 @@ class ReflowEngine(
 
     override fun setAppearance(appearance: Appearance) {
         if (appearance == look) return
+        // How pages turn doesn't change where the text falls.
+        val relay = look?.let { it.copy(settings = it.settings.copy(pageTurn = appearance.settings.pageTurn)) } != appearance
         look = appearance
-        if (frame != null) relayout()
+        if (frame != null && relay) relayout()
     }
 
     override fun setAnnotations(annotations: List<Annotation>) {
@@ -408,7 +411,7 @@ class ReflowEngine(
             )
             LaunchedEffect(g, look) { applyFrame(g) }
             val background = Color(look?.background?.color ?: 0)
-            PageTurnerView(turner, this@ReflowEngine, background = background) { offset ->
+            PageTurnerView(turner, this@ReflowEngine, look?.settings?.pageTurn ?: PageTurn.SLIDE, background = background) { offset ->
                 val key = when (offset) {
                     0 -> current
                     else -> neighbor(current, offset > 0, prefetch = false)
@@ -562,7 +565,7 @@ class ReflowEngine(
 
     override fun endHandle() = report()
 
-    override fun onDragStart() = clearSelection()
+    override fun onSwipe() = clearSelection()
 
     /** Tells the reader screen what's selected and where, to show its menu. */
     private fun report() {

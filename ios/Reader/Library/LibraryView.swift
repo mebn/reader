@@ -60,6 +60,8 @@ struct LibraryRoot: View {
         .fullScreenCover(item: $opener.open) { route in
             ReaderView(bookId: route.id) { opener.open = nil }
                 .navigationTransition(.zoom(sourceID: route.id, in: zoom))
+                // Swiping down to read on would close the book; it closes from its toolbar.
+                .interactiveDismissDisabled()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -139,7 +141,7 @@ struct LibraryScreen: View {
         let showBooks = tab == .all || tab == .books
         let noBooks = shown.folders.isEmpty && shown.books.isEmpty
         // In All, each kind gets its own section, and a highlight with a note shows only under Notes.
-        let kinds: [AnnotationFilter] = tab == .all ? [.plain, .notes, .bookmarks] : tab == .highlights ? [.highlights] : tab == .notes ? [.notes] : tab == .bookmarks ? [.bookmarks] : []
+        let kinds: [AnnotationFilter] = tab == .all ? [.bookmarks, .plain, .notes] : tab == .highlights ? [.highlights] : tab == .notes ? [.notes] : tab == .bookmarks ? [.bookmarks] : []
         let groups = kinds.map { ($0, annotationGroups($0, inScope)) }
         let anyNotes = groups.contains { !$0.1.isEmpty }
 
@@ -223,6 +225,12 @@ struct LibraryScreen: View {
         Task {
             var urls: [URL] = []
             for provider in providers {
+                // A book or folder dragged within the library is only its id as text: it moves
+                // here rather than being imported as a text file.
+                if let item = await libraryItem(provider) {
+                    _ = Actions.drop(item, into: folderId)
+                    continue
+                }
                 guard let type = provider.registeredContentTypes.first(where: { $0.conforms(to: .data) || $0.conforms(to: .content) }) else { continue }
                 let name = provider.suggestedName
                 if let url = await copyFile(provider, type: type, name: name) { urls.append(url) }
@@ -230,6 +238,16 @@ struct LibraryScreen: View {
             await Actions.importFiles(urls, into: folderId)
             urls.forEach { try? FileManager.default.removeItem(at: $0) }
         }
+    }
+
+    /// The "book:<id>" or "folder:<id>" a drag from the library carries, if it's one.
+    private func libraryItem(_ provider: NSItemProvider) async -> String? {
+        guard provider.canLoadObject(ofClass: String.self) else { return nil }
+        let text: String? = await withCheckedContinuation { continuation in
+            _ = provider.loadObject(ofClass: String.self) { string, _ in continuation.resume(returning: string) }
+        }
+        guard let text, text.hasPrefix("book:") || text.hasPrefix("folder:") else { return nil }
+        return text
     }
 
     private func copyFile(_ provider: NSItemProvider, type: UTType, name: String?) async -> URL? {
@@ -250,26 +268,38 @@ struct LibraryScreen: View {
 /// The library's tabs as a row of glass chips.
 private struct TabChips: View {
     @Binding var selection: LibraryTab
-    @Namespace private var glass
+    @Namespace private var chips
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
+            // Apart, or glass this close together melts into its neighbours.
+            GlassEffectContainer(spacing: 0) {
                 HStack(spacing: 8) {
                     ForEach(LibraryTab.allCases) { tab in
                         let selected = tab == selection
                         Button {
-                            withAnimation(.smooth(duration: 0.3)) { selection = tab }
+                            withAnimation(.snappy(duration: 0.3)) { selection = tab }
                         } label: {
+                            // Sized for the bold label either way, so choosing one doesn't
+                            // push the others along.
                             Text(tab.label)
-                                .font(.subheadline.weight(selected ? .semibold : .regular))
+                                .font(.subheadline.weight(.semibold))
+                                .hidden()
+                                .overlay { Text(tab.label).font(.subheadline.weight(selected ? .semibold : .regular)) }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 9)
+                                .background {
+                                    if selected {
+                                        Capsule()
+                                            .fill(Color.accentColor.opacity(0.18))
+                                            .matchedGeometryEffect(id: "selection", in: chips)
+                                    }
+                                }
+                                .contentShape(.capsule)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(selected ? Color.primary : .secondary)
-                        .glassEffect(selected ? .regular.tint(.accentColor.opacity(0.18)).interactive() : .regular.interactive(), in: .capsule)
-                        .glassEffectID(tab.rawValue, in: glass)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }

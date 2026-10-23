@@ -15,6 +15,7 @@ final class PdfController: UIViewController, ReaderEngine {
     private var hadSelection = false
     private var pendingLocator: Locator?
     private var observers: [NSObjectProtocol] = []
+    private let turner = PageTurner()
 
     private static let prefix = "reader:"
 
@@ -75,19 +76,13 @@ final class PdfController: UIViewController, ReaderEngine {
     @objc private func keyNext() { turn(forward: true) }
     @objc private func keyPrev() { turn(forward: false) }
 
-    /// One page swiped like a book, or two facing pages on a wide screen.
+    /// One page at a time, or two facing pages on a wide screen.
     private func configureMode() {
         let wanted = (appearance?.settings.pages ?? 1) == 2 && view.bounds.width > 760 ? 2 : 1
         guard wanted != span || pdfView.displayMode == .singlePageContinuous else { return }
         let page = currentIndex
         span = wanted
-        if span == 2 {
-            pdfView.usePageViewController(false)
-            pdfView.displayMode = .twoUp
-        } else {
-            pdfView.displayMode = .singlePage
-            pdfView.usePageViewController(true)
-        }
+        pdfView.displayMode = span == 2 ? .twoUp : .singlePage
         pdfView.autoScales = true
         if let target = doc.page(at: page) { pdfView.go(to: target) }
     }
@@ -155,7 +150,17 @@ final class PdfController: UIViewController, ReaderEngine {
 
     func turn(forward: Bool) {
         pdfView.clearSelection()
+        guard forward ? pdfView.canGoToNextPage : pdfView.canGoToPreviousPage else { return }
+        // The old page leaves as a picture of itself, while the view shows the new one.
+        turner.finish()
+        let before = pdfView.snapshotView(afterScreenUpdates: false)
         if forward { pdfView.goToNextPage(nil) } else { pdfView.goToPreviousPage(nil) }
+        guard let before else { return }
+        before.frame = pdfView.frame
+        view.addSubview(before)
+        turner.turn(from: before, to: pdfView, style: appearance?.settings.pageTurn ?? .slide, forward: forward) {
+            before.removeFromSuperview()
+        }
     }
 
     func isVisible(_ locator: Locator) -> Bool {
@@ -212,8 +217,8 @@ final class PdfController: UIViewController, ReaderEngine {
     }
 
     @objc private func swiped(_ gesture: UISwipeGestureRecognizer) {
-        // Two-up pages don't scroll as a book; swipes turn them.
-        guard span == 2 else { return }
+        // A zoomed-in page pans instead.
+        guard pdfView.scaleFactor <= pdfView.scaleFactorForSizeToFit * 1.01 else { return }
         turn(forward: gesture.direction == .left)
     }
 

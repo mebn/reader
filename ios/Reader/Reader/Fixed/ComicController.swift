@@ -1,11 +1,11 @@
 import UIKit
 
-/// Shows comic pages (CBZ) one or two at a time, swiped like a book.
+/// Shows comic pages (CBZ) one or two at a time, turned by a tap or a swipe.
 final class ComicController: UIViewController, ReaderEngine {
     weak var delegate: ReaderEngineDelegate?
 
     private let doc: ComicDocument
-    private let pager = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal, options: [.interPageSpacing: 0])
+    private lazy var turner = PageTurner(host: self)
     private var appearance: Appearance?
     private var page = 0
     private var span = 1
@@ -20,22 +20,19 @@ final class ComicController: UIViewController, ReaderEngine {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        addChild(pager)
-        pager.view.frame = view.bounds
-        pager.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(pager.view)
-        pager.didMove(toParent: self)
-        pager.dataSource = self
-        pager.delegate = self
-
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         view.addGestureRecognizer(tap)
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
+            swipe.direction = direction
+            view.addGestureRecognizer(swipe)
+        }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let wanted = (appearance?.settings.pages ?? 1) == 2 && view.bounds.width > 760 ? 2 : 1
-        if wanted != span || pager.viewControllers?.isEmpty != false {
+        if wanted != span || turner.page == nil {
             span = wanted
             goTo(pendingLocator ?? Locator(page: page))
             pendingLocator = nil
@@ -56,9 +53,7 @@ final class ComicController: UIViewController, ReaderEngine {
     func setAppearance(_ appearance: Appearance) {
         self.appearance = appearance
         view.backgroundColor = appearance.background.uiColor
-        for case let controller as ComicPageController in pager.viewControllers ?? [] {
-            controller.view.backgroundColor = appearance.background.uiColor
-        }
+        turner.page?.view.backgroundColor = appearance.background.uiColor
         view.setNeedsLayout()
     }
 
@@ -70,7 +65,7 @@ final class ComicController: UIViewController, ReaderEngine {
             return
         }
         page = align(locator.page ?? 0)
-        pager.setViewControllers([controller(page)], direction: .forward, animated: false)
+        turner.show(controller(page), style: nil, forward: true)
         emit()
     }
 
@@ -82,7 +77,7 @@ final class ComicController: UIViewController, ReaderEngine {
         let next = forward ? page + span : page - span
         guard next >= 0, next < doc.pages.count else { return }
         page = align(next)
-        pager.setViewControllers([controller(page)], direction: forward ? .forward : .reverse, animated: true)
+        turner.show(controller(page), style: appearance?.settings.pageTurn ?? .slide, forward: forward)
         emit()
     }
 
@@ -116,28 +111,14 @@ final class ComicController: UIViewController, ReaderEngine {
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         delegate?.engineTapped(atFraction: gesture.location(in: view).x / max(1, view.bounds.width))
     }
-}
 
-extension ComicController: UIPageViewControllerDataSource, UIPageViewControllerDelegate {
-    func pageViewController(_ pvc: UIPageViewController, viewControllerAfter vc: UIViewController) -> UIViewController? {
-        guard let index = (vc as? ComicPageController)?.index, index + span < doc.pages.count else { return nil }
-        return controller(index + span)
-    }
-
-    func pageViewController(_ pvc: UIPageViewController, viewControllerBefore vc: UIViewController) -> UIViewController? {
-        guard let index = (vc as? ComicPageController)?.index, index > 0 else { return nil }
-        return controller(max(0, index - span))
-    }
-
-    func pageViewController(_ pvc: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let index = (pvc.viewControllers?.first as? ComicPageController)?.index else { return }
-        page = index
-        emit()
+    @objc private func swiped(_ gesture: UISwipeGestureRecognizer) {
+        turn(forward: gesture.direction == .left)
     }
 }
 
 private final class ComicPageController: UIViewController {
-    let index: Int
+    private let index: Int
     private let doc: ComicDocument
     private let span: Int
 

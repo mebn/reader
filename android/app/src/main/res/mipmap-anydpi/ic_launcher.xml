@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The iOS icon, inset so launcher masks don't clip the book. -->
+<!-- The book art already sits inside the adaptive icon's safe zone, on white. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
-    <foreground>
-        <inset android:drawable="@drawable/ic_launcher_art" android:inset="10%" />
-    </foreground>
+    <foreground android:drawable="@drawable/ic_launcher_art" />
 </adaptive-icon>

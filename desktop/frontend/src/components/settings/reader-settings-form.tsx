@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Slider } from "@/components/ui/slider";
+import { Minus, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BACKGROUNDS, FONTS, type ReaderSettings } from "@/lib/settings";
+import { BACKGROUNDS, FONTS, PAGE_TURNS, type PageTurn, type ReaderSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 interface SectionProps {
@@ -101,6 +102,7 @@ export function LayoutSettings({ value, onChange, title = "Layout" }: SectionPro
         />
       </Row>
       <PagesSetting value={value} onChange={onChange} />
+      <PageTurnSetting value={value} onChange={onChange} />
       <Row label="Hyphenation">
         <Switch checked={value.hyphenate} onCheckedChange={(hyphenate) => onChange({ hyphenate })} />
       </Row>
@@ -123,6 +125,15 @@ export function PagesSetting({ value, onChange }: SectionProps) {
         ]}
         onChange={(pages) => onChange({ pages: Number(pages) as 1 | 2 })}
       />
+    </Row>
+  );
+}
+
+/** How a page turns: it just changes, fades, or slides in from the side it was turned to. */
+export function PageTurnSetting({ value, onChange }: SectionProps) {
+  return (
+    <Row label="Page turn">
+      <Segmented value={value.pageTurn} options={PAGE_TURNS} onChange={(pageTurn) => onChange({ pageTurn: pageTurn as PageTurn })} />
     </Row>
   );
 }
@@ -215,12 +226,24 @@ interface RangeProps {
   onChange(v: number): void;
 }
 
+/** A setting stepped a notch at a time: [−] value [+]. */
 function Range({ label, value, min, max, step, format, onChange }: RangeProps) {
+  const change = (direction: number) => {
+    const next = Math.round((value + direction * step) / step) * step;
+    onChange(Number(Math.min(max, Math.max(min, next)).toFixed(3)));
+  };
   return (
-    <div className="grid grid-cols-[88px_1fr_36px] items-center gap-3">
+    <div className="flex items-center justify-between gap-3">
       <span className="text-[13px] text-muted-foreground">{label}</span>
-      <Slider value={[value]} min={min} max={max} step={step} onValueChange={([v]) => onChange(Number(v.toFixed(3)))} />
-      <span className="text-right text-xs text-muted-foreground tabular-nums">{format(value)}</span>
+      <div className="flex items-center rounded-full bg-muted">
+        <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={`Decrease ${label}`} disabled={value - min < step / 2} onClick={() => change(-1)}>
+          <Minus />
+        </Button>
+        <span className="w-12 text-center text-sm tabular-nums">{format(value)}</span>
+        <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={`Increase ${label}`} disabled={max - value < step / 2} onClick={() => change(1)}>
+          <Plus />
+        </Button>
+      </div>
     </div>
   );
 }

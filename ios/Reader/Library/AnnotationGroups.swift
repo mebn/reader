@@ -45,6 +45,7 @@ struct AnnotationGroups: View {
                             Text(group.book.title).font(.subheadline.weight(.medium)).lineLimit(1)
                             Text((group.book.author.isEmpty ? "" : "\(group.book.author) · ") + "\(group.list.count) \(group.list.count == 1 ? "item" : "items")")
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                .foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
                     .padding(.bottom, 4)

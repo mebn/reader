@@ -27,6 +27,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Reader syncs with a server on your local network.</string>
 	<key>ReaderServerURL</key>
 	<string>$(READER_SERVER_URL)</string>
 	<key>UIApplicationSceneManifest</key>

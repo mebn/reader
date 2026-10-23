@@ -61,10 +61,10 @@ struct TextSettingsSection: View {
         }
         .padding(.vertical, 4)
 
-        SliderRow(label: "Size", value: $settings.fontSize, range: 12...34, step: 1) { "\(Int($0))" }
-        SliderRow(label: "Line height", value: $settings.lineHeight, range: 1.1...2.4, step: 0.05) { String(format: "%.2f", $0) }
-        SliderRow(label: "Weight", value: $settings.weight, range: 300...700, step: 50) { "\(Int($0))" }
-        SliderRow(label: "Spacing", value: $settings.tracking, range: -0.03...0.12, step: 0.005) { String(format: "%.1f", $0 * 100) }
+        StepperRow(label: "Size", value: $settings.fontSize, range: 12...34, step: 1) { "\(Int($0))" }
+        StepperRow(label: "Line height", value: $settings.lineHeight, range: 1.1...2.4, step: 0.05) { String(format: "%.2f", $0) }
+        StepperRow(label: "Weight", value: $settings.weight, range: 300...700, step: 50) { "\(Int($0))" }
+        StepperRow(label: "Spacing", value: $settings.tracking, range: -0.03...0.12, step: 0.005) { String(format: "%.1f", $0 * 100) }
     }
 }
 
@@ -72,14 +72,16 @@ struct LayoutSettingsSection: View {
     @Binding var settings: ReaderSettings
 
     var body: some View {
-        SliderRow(label: "Margins", value: $settings.sideMargin, range: 0...40, step: 1) { $0 == 0 ? "None" : "\(Int($0))%" }
-        SliderRow(label: "Paragraphs", value: $settings.paragraphSpacing, range: 0...2, step: 0.1) { String(format: "%.1f", $0) }
+        StepperRow(label: "Margins", value: $settings.sideMargin, range: 0...40, step: 1) { $0 == 0 ? "None" : "\(Int($0))%" }
+        StepperRow(label: "Paragraphs", value: $settings.paragraphSpacing, range: 0...2, step: 0.1) { String(format: "%.1f", $0) }
         Picker("Align", selection: $settings.align) {
             Text("Left").tag(TextAlign.left)
             Text("Justify").tag(TextAlign.justify)
         }
         PagesPicker(settings: $settings)
+        PageTurnPicker(settings: $settings)
         Toggle("Hyphenation", isOn: $settings.hyphenate)
+        Toggle("Original styles", isOn: $settings.originalStyles)
     }
 }
 
@@ -91,6 +93,19 @@ struct PagesPicker: View {
         Picker("Pages", selection: $settings.pages) {
             Text("One").tag(1)
             Text("Two").tag(2)
+        }
+    }
+}
+
+/// Whether a page changes at once, fades or slides in.
+struct PageTurnPicker: View {
+    @Binding var settings: ReaderSettings
+
+    var body: some View {
+        Picker("Page turn", selection: $settings.pageTurn) {
+            Text("Instant").tag(PageTurn.instant)
+            Text("Fade").tag(PageTurn.fade)
+            Text("Slide").tag(PageTurn.slide)
         }
     }
 }
@@ -117,7 +132,8 @@ struct FooterSettingsSection: View {
     }
 }
 
-struct SliderRow: View {
+/// A setting stepped a notch at a time: [−] value [+]. Holding a button keeps stepping.
+struct StepperRow: View {
     var label: String
     @Binding var value: Double
     var range: ClosedRange<Double>
@@ -126,13 +142,46 @@ struct SliderRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(label).frame(width: 92, alignment: .leading)
-            Slider(value: Binding(get: { value }, set: { value = ($0 / step).rounded() * step }), in: range)
-            Text(format(value))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 38, alignment: .trailing)
+            Text(label)
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                button(-1, "minus", "Decrease")
+                Text(format(value))
+                    .font(.body.monospacedDigit())
+                    .frame(minWidth: 52)
+                    .contentTransition(.numericText(value: value))
+                button(1, "plus", "Increase")
+            }
+            .background(.fill.tertiary, in: .capsule)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(format(value))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: change(1)
+            case .decrement: change(-1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func button(_ direction: Double, _ symbol: String, _ name: String) -> some View {
+        let limit = direction < 0 ? range.lowerBound : range.upperBound
+        return Button { change(direction) } label: {
+            Image(systemName: symbol)
+                .frame(width: 44, height: 34)
+                .contentShape(.rect)
+        }
+        // Borderless, or a tap anywhere in the form row presses both buttons.
+        .buttonStyle(.borderless)
+        .buttonRepeatBehavior(.enabled)
+        .disabled(abs(value - limit) < step / 2)
+        .accessibilityLabel(name)
+    }
+
+    private func change(_ direction: Double) {
+        let next = ((value + direction * step) / step).rounded() * step
+        withAnimation(.snappy(duration: 0.15)) { value = min(max(next, range.lowerBound), range.upperBound) }
     }
 }
 

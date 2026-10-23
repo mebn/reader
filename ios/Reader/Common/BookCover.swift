@@ -79,7 +79,7 @@ struct BookCover: View {
         return GeometryReader { geo in
             VStack(alignment: .leading) {
                 Text(book.title)
-                    .font(.custom("Literata", size: max(9, geo.size.width * 0.12)).weight(.medium))
+                    .font(.system(size: max(9, geo.size.width * 0.12)).weight(.medium))
                     .lineLimit(5)
                 Spacer(minLength: 0)
                 Text(book.author)

@@ -1,5 +1,5 @@
 import { Type } from "lucide-react";
-import { HeaderFooterSettings, LayoutSettings, PagesSetting, PageSettings, TextSettings } from "@/components/settings/reader-settings-form";
+import { HeaderFooterSettings, LayoutSettings, PagesSetting, PageSettings, PageTurnSetting, TextSettings } from "@/components/settings/reader-settings-form";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ReaderSettings } from "@/lib/settings";
@@ -51,8 +51,9 @@ export function ReaderSettingsPanel({ open, value, dark, onModeChange, hasOverri
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <TabsContent value="page" className="grid gap-5">
             <PageSettings {...section} mode={dark ? "dark" : "light"} onModeChange={onModeChange} />
-            {/* Fixed pages have no Layout tab; the one layout choice they take lives here. */}
+            {/* Fixed pages have no Layout tab; the layout choices they take live here. */}
             {fixed && <PagesSetting value={value} onChange={onChange} />}
+            {fixed && <PageTurnSetting value={value} onChange={onChange} />}
           </TabsContent>
           <TabsContent value="text">
             <TextSettings {...section} />

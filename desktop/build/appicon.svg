@@ -1,112 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <defs><clipPath id="sq"><rect x="52" y="52" width="920" height="920" rx="210"/></clipPath>
-  <filter id="drop" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="16"/></filter></defs>
-  <rect x="60" y="76" width="904" height="904" rx="206" fill="#000" opacity="0.35" filter="url(#drop)"/>
-  <g clip-path="url(#sq)">
-  <g transform="translate(512 512) scale(0.9) translate(-512 -512)">
-  
-  <defs>
-    <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1">
-      <stop offset="0" stop-color="#3a1b9c"/>
-      <stop offset="0.5" stop-color="#1a1160"/>
-      <stop offset="1" stop-color="#0a0a3a"/>
-    </linearGradient>
-    <radialGradient id="aura" cx="0.5" cy="0.46" r="0.5">
-      <stop offset="0" stop-color="#7a5cff" stop-opacity="0.55"/>
-      <stop offset="0.6" stop-color="#4a38d8" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#4a38d8" stop-opacity="0"/>
-    </radialGradient>
-    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
-      <circle cx="20" cy="20" r="3" fill="#fff" fill-opacity="0.07"/>
-    </pattern>
-    <radialGradient id="dotfade" cx="0.5" cy="0.5" r="0.7">
-      <stop offset="0.35" stop-color="#fff" stop-opacity="1"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
-    <mask id="dotmask"><rect width="1024" height="1024" fill="url(#dotfade)"/></mask>
-
-    <linearGradient id="cover" x1="0.05" y1="0" x2="0.95" y2="1">
-      <stop offset="0" stop-color="#ffc24d"/>
-      <stop offset="0.36" stop-color="#ff7f8a"/>
-      <stop offset="0.7" stop-color="#b56cff"/>
-      <stop offset="1" stop-color="#6cc4ff"/>
-    </linearGradient>
-    <linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6a45e0"/>
-      <stop offset="1" stop-color="#2a2fb8"/>
-    </linearGradient>
-    <linearGradient id="pages" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff6ff"/>
-      <stop offset="1" stop-color="#d9d2ff"/>
-    </linearGradient>
-    <linearGradient id="spine" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#2a0a6a" stop-opacity="0.38"/>
-      <stop offset="1" stop-color="#2a0a6a" stop-opacity="0"/>
-    </linearGradient>
-    <radialGradient id="gloss" cx="0.22" cy="0.1" r="0.75">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.4"/>
-      <stop offset="0.5" stop-color="#fff" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="label" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1b1066"/>
-      <stop offset="1" stop-color="#0d0a3f"/>
-    </linearGradient>
-    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#d9ccff"/>
-    </linearGradient>
-    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ffd9e6"/>
-    </linearGradient>
-    <filter id="blur40" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
-    <filter id="blur18" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>
-    <filter id="blur4" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>
-    <clipPath id="coverclip"><rect x="318" y="236" width="392" height="548" rx="52"/></clipPath>
-    <clipPath id="labelclip"><rect x="418" y="468" width="262" height="168" rx="40"/></clipPath>
-  </defs>
-
-  <rect width="1024" height="1024" fill="url(#bg)"/>
-  <rect width="1024" height="1024" fill="url(#dots)" mask="url(#dotmask)"/>
-  <rect width="1024" height="1024" fill="url(#aura)"/>
-
-  <g transform="translate(512 512) scale(1.32) translate(-522 -518)">
-  <!-- ground shadow and glow -->
-  <ellipse cx="520" cy="826" rx="210" ry="26" fill="#05051f" opacity="0.7" filter="url(#blur18)"/>
-  <rect x="318" y="236" width="392" height="548" rx="52" fill="url(#cover)" opacity="0.55" filter="url(#blur40)"/>
-
-  <!-- back cover and page block give the book its thickness -->
-  <rect x="334" y="252" width="392" height="548" rx="52" fill="url(#back)"/>
-  <rect x="326" y="244" width="392" height="548" rx="52" fill="url(#pages)"/>
-  <rect x="326" y="244" width="392" height="548" rx="52" fill="none" stroke="#9a8cf0" stroke-opacity="0.35" stroke-width="3"/>
-
-  <!-- front cover -->
-  <rect x="318" y="236" width="392" height="548" rx="52" fill="url(#cover)"/>
-  <g clip-path="url(#coverclip)">
-    <rect x="318" y="236" width="96" height="548" fill="url(#spine)"/>
-    <rect x="410" y="236" width="4" height="548" fill="#fff" opacity="0.38"/>
-    <rect x="414" y="236" width="3" height="548" fill="#3a0a7a" opacity="0.18"/>
-    <rect x="318" y="236" width="392" height="548" fill="url(#gloss)"/>
-    <!-- rim light -->
-    <rect x="321" y="239" width="386" height="542" rx="49" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="5" filter="url(#blur4)"/>
+  <!-- Reader app icon: a black hardcover with a rounded, banded spine, an R on its cover and a ribbon, on white. -->
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="14"/></filter></defs>
+  <rect x="100" y="110" width="824" height="824" rx="185" fill="#000" opacity="0.28" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#fff"/>
+  <g stroke-linejoin="round" stroke-linecap="round" transform="translate(102.4 102.4) scale(0.8)">
+    <path d="M517.5 710.6L551 692.8L551 812.8L534.3 794.3L517.5 830.6Z" fill="none" stroke="#fff" stroke-width="18.2"/>
+    <path d="M517.5 710.6L551 692.8L551 812.8L534.3 794.3L517.5 830.6Z" fill="#000" stroke="#000" stroke-width="7.3"/>
+    <path d="M319.3 332.4L571.3 198.4L573.5 197.3L575.8 196.5L577.9 196L580 195.7L582.1 195.7L584 196L585.8 196.5L587.4 197.4L603.5 205.9L605 207L606.3 208.3L607.5 209.9L608.4 211.7L609.2 213.6L609.7 215.8L610.1 218.1L610.2 220.6L610.2 594.1L610.1 596.7L609.7 599.3L609.2 602.1L608.4 604.9L607.5 607.7L606.3 610.4L605 613.2L603.5 615.9L601.9 618.4L600.1 620.9L598.1 623.2L596.1 625.4L594 627.4L591.8 629.1L589.6 630.7L587.4 632L335.4 766L319.3 757.4Z" fill="#000" stroke="#000" stroke-width="12.1"/>
+    <path d="M598.1 214.9L676.5 256.6L413.8 396.3L335.4 354.6Z" fill="#fff" stroke="#000" stroke-width="12.1"/>
+    <path d="M596.4 232.5L356.4 360.1" fill="none" stroke="#000" stroke-width="5.3"/>
+    <path d="M612.1 240.8L372.1 368.4" fill="none" stroke="#000" stroke-width="5.3"/>
+    <path d="M627.7 249.2L387.8 376.7" fill="none" stroke="#000" stroke-width="5.3"/>
+    <path d="M643.4 257.5L403.5 385.1" fill="none" stroke="#000" stroke-width="5.3"/>
+    <path d="M413.8 382.6L665.8 248.6L668 247.6L670.3 246.8L672.4 246.2L674.5 246L676.6 246L678.5 246.2L680.3 246.8L681.9 247.6L698 256.2L699.5 257.2L700.8 258.6L702 260.1L702.9 261.9L703.7 263.9L704.2 266.1L704.6 268.4L704.7 270.9L704.7 644.3L704.6 646.9L704.2 649.6L703.7 652.3L702.9 655.1L702 657.9L700.8 660.7L699.5 663.4L698 666.1L696.4 668.7L694.6 671.2L692.6 673.5L690.6 675.6L688.5 677.6L686.3 679.4L684.1 680.9L681.9 682.2L429.9 816.2L413.8 807.7Z" fill="#000" stroke="#000" stroke-width="12.1"/>
+    <path d="M704.7 644.3L704.6 646.9L704.2 649.6L703.7 652.3L702.9 655.1L702 657.9L700.8 660.7L699.5 663.4L698 666.1L696.4 668.7L694.6 671.2L692.6 673.5L690.6 675.6L688.5 677.6L686.3 679.4L684.1 680.9L681.9 682.2L429.9 816.2L429.9 391.2L681.9 257.2L684.1 256.1L686.3 255.3L688.5 254.8L690.6 254.5L692.6 254.5L694.6 254.8L696.4 255.3L698 256.2L699.5 257.2L700.8 258.6L702 260.1L702.9 261.9L703.7 263.9L704.2 266.1L704.6 268.4L704.7 270.9Z" fill="#e9e9e9" stroke="#000" stroke-width="12.1"/>
+    <path d="M459.4 770.2L459.4 405.8" fill="none" stroke="#000" stroke-width="9.7"/>
+    <path d="M319.3 332.4L429.9 391.2L429.9 816.2L420.8 815.2L411.8 814.1L403 812.9L394.4 811.6L386.1 810.1L378.3 808.4L370.9 806.4L364 804.2L357.6 801.7L351.8 798.9L346.6 795.9L341.9 792.5L337.7 788.8L334.1 784.9L330.9 780.7L328 776.3L325.6 771.7L323.3 767.1L321.3 762.3L319.3 757.4Z" fill="#000" stroke="#000" stroke-width="12.1"/>
+    <path d="M328 733.8L330.9 738.2L334.1 742.4L337.7 746.3L341.9 750L346.6 753.3L351.8 756.4L357.6 759.2L364 761.7L370.9 763.9L378.3 765.9L386.1 767.6L394.4 769.1" fill="none" stroke="#fff" stroke-width="6.1"/>
+    <path d="M328 704L330.9 708.4L334.1 712.6L337.7 716.5L341.9 720.2L346.6 723.6L351.8 726.7L357.6 729.5L364 732L370.9 734.2L378.3 736.1L386.1 737.8L394.4 739.3" fill="none" stroke="#fff" stroke-width="6.1"/>
+    <path d="M328 423.5L330.9 427.9L334.1 432.1L337.7 436L341.9 439.7L346.6 443L351.8 446.1L357.6 448.9L364 451.4L370.9 453.6L378.3 455.6L386.1 457.3L394.4 458.8" fill="none" stroke="#fff" stroke-width="6.1"/>
+    <path d="M328 393.8L330.9 398.1L334.1 402.3L337.7 406.2L341.9 409.9L346.6 413.3L351.8 416.4L357.6 419.2L364 421.7L370.9 423.9L378.3 425.8L386.1 427.5L394.4 429" fill="none" stroke="#fff" stroke-width="6.1"/>
+    <path d="M555.6 452.7L555.6 517.1L555.8 517L556 516.9L556.2 516.8L556.5 516.7L556.7 516.6L557 516.5L557.3 516.3L557.6 516.2L557.9 516L558.2 515.9L558.6 515.7L558.9 515.6L559.2 515.4L559.5 515.3L559.8 515.2L560 515L560.3 514.9L560.5 514.8L560.7 514.7L561 514.6L564.2 512.7L567.3 510.8L570.2 508.9L573 506.8L575.6 504.7L578 502.4L580.3 500.1L582.4 497.8L584.3 495.3L586.1 492.8L587.7 490.1L589.1 487.4L590.4 484.7L591.5 481.8L592.4 478.9L593.2 475.9L593.8 472.9L594.2 469.7L594.4 466.5L594.5 463.2L594.4 460.4L594.2 457.9L593.8 455.5L593.3 453.3L592.6 451.3L591.8 449.6L590.8 448L589.6 446.6L588.3 445.4L586.9 444.5L585.3 443.7L583.6 443.2L581.8 442.9L579.9 442.8L577.9 443L575.8 443.3L573.6 443.9L571.3 444.7L568.8 445.8L566.3 447.1ZM496.4 466.3L581.9 420.9L587.1 418.2L592.2 415.9L596.9 413.9L601.4 412.3L605.6 411L609.6 410.2L613.3 409.6L616.8 409.5L620 409.7L622.9 410.2L625.6 411.2L628 412.4L630.1 414.1L632 416L633.5 418.4L634.8 421.1L635.8 424.1L636.5 427.5L636.9 431.2L637 435.3L636.9 439.1L636.6 442.9L636.1 446.6L635.3 450.3L634.3 453.9L633.1 457.5L631.7 461.1L630 464.6L628.2 468.1L626.1 471.6L623.8 475L621.2 478.3L618.5 481.7L615.5 485L612.4 488.2L609 491.4L605.4 494.5L601.6 497.6L597.5 500.7L593.3 503.7L594.7 503.3L596.2 502.9L597.6 502.5L599 502.2L600.3 501.9L601.6 501.7L602.9 501.5L604.1 501.4L605.3 501.3L606.4 501.3L607.6 501.3L608.7 501.3L609.7 501.4L610.7 501.5L611.7 501.7L612.7 501.9L613.6 502.1L614.5 502.4L615.3 502.8L616.1 503.1L617.9 504.2L619.7 505.5L621.4 507.1L623.1 509.1L624.8 511.4L626.5 513.9L628.1 516.8L629.8 520L631.4 523.5L632.9 527.3L633.3 528.1L633.6 528.9L634 529.7L634.3 530.4L634.5 531.1L634.8 531.8L635.1 532.4L635.3 532.9L635.5 533.5L635.7 534L636.5 535.8L637.4 537.5L638.3 538.9L639.3 540.3L640.2 541.4L641.2 542.4L642.3 543.2L643.3 543.8L644.4 544.2L645.5 544.5L646.7 544.6L648 544.6L649.5 544.4L651 544.1L652.7 543.6L654.5 543L656.4 542.3L658.5 541.4L660.7 540.3L663 539.1L665.7 537.7L665.7 553.3L663.8 554.4L662 555.6L660.2 556.6L658.4 557.7L656.6 558.8L654.9 559.8L653.2 560.8L651.6 561.8L650 562.7L648.4 563.7L646.8 564.6L645.3 565.5L643.8 566.3L642.3 567.1L640.8 568L639.4 568.7L638 569.5L636.7 570.2L635.4 570.9L634.1 571.6L631.9 572.8L629.7 573.8L627.6 574.8L625.5 575.6L623.5 576.4L621.6 577L619.7 577.6L617.8 578.1L616 578.4L614.3 578.7L612.6 578.8L611 578.9L609.5 578.9L608 578.8L606.5 578.5L605.2 578.2L603.9 577.8L602.6 577.3L601.4 576.7L600.3 575.9L599.2 575L598.1 573.9L597 572.4L596 570.7L595 568.7L593.9 566.5L593 564L592 561.2L591 558.2L590.1 554.9L589.7 553.4L589.3 552.1L588.9 550.8L588.6 549.6L588.2 548.5L587.9 547.5L587.6 546.5L587.3 545.6L587 544.8L586.8 544.1L585.9 541.8L585 539.7L584 537.8L583 536.1L581.9 534.6L580.8 533.3L579.6 532.2L578.4 531.2L577.2 530.5L575.9 529.9L574.5 529.5L573 529.3L571.5 529.2L569.8 529.3L568.1 529.6L566.2 530.1L564.3 530.7L562.2 531.5L560.1 532.5L557.9 533.6L555.6 534.8L555.6 590.4L559.3 593.5L574.6 586.4L574.6 601.7L496.4 643.3L496.4 628L511.3 619L515 612L515 476.6L511.3 474.8L496.4 481.7Z" fill="#000" fill-rule="evenodd"/>
+    <path d="M319.3 332.4L571.3 198.4L573.5 197.3L575.8 196.5L577.9 196L580 195.7L582.1 195.7L584 196L585.8 196.5L587.4 197.4L603.5 205.9L681.9 247.6L698 256.2L699.5 257.2L700.8 258.6L702 260.1L702.9 261.9L703.7 263.9L704.2 266.1L704.6 268.4L704.7 270.9L704.7 644.3L704.6 646.9L704.2 649.6L703.7 652.3L702.9 655.1L702 657.9L700.8 660.7L699.5 663.4L698 666.1L696.4 668.7L694.6 671.2L692.6 673.5L690.6 675.6L688.5 677.6L686.3 679.4L684.1 680.9L681.9 682.2L429.9 816.2L420.8 815.2L411.8 814.1L403 812.9L394.4 811.6L386.1 810.1L378.3 808.4L370.9 806.4L364 804.2L357.6 801.7L351.8 798.9L346.6 795.9L341.9 792.5L337.7 788.8L334.1 784.9L330.9 780.7L328 776.3L325.6 771.7L323.3 767.1L321.3 762.3L319.3 757.4Z" fill="none" stroke="#000" stroke-width="22.8"/>
   </g>
-  <rect x="319.5" y="237.5" width="389" height="545" rx="50.5" fill="none" stroke="#fff" stroke-opacity="0.3" stroke-width="3"/>
-
-  <!-- bookmark ribbon -->
-  <path d="M600 236h66v158l-33-26-33 26z" fill="url(#ribbon)"/>
-  <path d="M600 236h10v146l-10 8z" fill="#fff" opacity="0.5"/>
-
-  <!-- recessed label with glowing title lines -->
-  <rect x="418" y="468" width="262" height="168" rx="40" fill="url(#label)"/>
-  <g clip-path="url(#labelclip)">
-    <rect x="418" y="468" width="262" height="12" fill="#000" opacity="0.35"/>
-    <rect x="418" y="624" width="262" height="12" fill="#8f7dff" opacity="0.28"/>
-  </g>
-  <rect x="466" y="518" width="166" height="26" rx="13" fill="#9a86ff" opacity="0.7" filter="url(#blur18)"/>
-  <rect x="466" y="518" width="166" height="26" rx="13" fill="url(#bar)"/>
-  <rect x="466" y="562" width="104" height="26" rx="13" fill="url(#bar)" opacity="0.62"/>
-
-  </g>
-  </g></g>
 </svg>

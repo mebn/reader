@@ -9,10 +9,14 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Kept here so regenerating the project doesn't drop the team picked in Xcode.
+    DEVELOPMENT_TEAM: CCAR39TNUP
   # The sync server, fixed at build time like the desktop app's VITE_SERVER_URL.
   configs:
     Debug:
-      READER_SERVER_URL: http://localhost:8080
+      # This Mac by its Bonjour name, which the simulator and a phone on the same Wi-Fi
+      # both reach; localhost on a phone is the phone.
+      READER_SERVER_URL: http://mebnMBP.local:8080
     Release:
       READER_SERVER_URL: https://reader.marnil.dev
 targets:

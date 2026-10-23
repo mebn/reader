@@ -31,6 +31,14 @@ enum class TextAlign {
     @SerialName("justify") JUSTIFY,
 }
 
+/** How the reader moves from one page to the next. */
+@Serializable
+enum class PageTurn(val label: String) {
+    @SerialName("instant") INSTANT("Instant"),
+    @SerialName("fade") FADE("Fade"),
+    @SerialName("slide") SLIDE("Slide"),
+}
+
 /**
  * Settings for how books look. Stored as JSON in the "reader" scope (defaults) and in
  * "reader:<bookId>" (only what a book changes), the same shape the desktop app uses.
@@ -52,6 +60,7 @@ data class ReaderSettings(
     val align: TextAlign = TextAlign.JUSTIFY,
     val hyphenate: Boolean = true,
     val pages: Int = 1,
+    val pageTurn: PageTurn = PageTurn.SLIDE,
     /** What the header shows. */
     val headerTitle: Boolean = true,
     val headerAuthor: Boolean = false,

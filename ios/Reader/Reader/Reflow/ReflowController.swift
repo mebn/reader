@@ -34,8 +34,7 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     private let doc: ReflowDocument
     private let bookId: String
-    /// Pages curl from the corner like paper; the desktop app draws the same turn.
-    private let pager = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal, options: [.spineLocation: UIPageViewController.SpineLocation.min.rawValue])
+    private lazy var turner = PageTurner(host: self)
 
     private var appearance: Appearance?
     private var annotations: [Annotation] = []
@@ -49,8 +48,10 @@ final class ReflowController: UIViewController, ReaderEngine {
     /// Where to go once the first layout is done.
     private var pendingLocator: Locator?
     private var hadSelection = false
-    private var curling = false
     private var tapGesture: UITapGestureRecognizer!
+    /// Swipes turn the page; they're off while text is selected, so dragging a selection
+    /// handle can't turn it.
+    private var swipes: [UISwipeGestureRecognizer] = []
 
     init(doc: ReflowDocument, bookId: String) {
         self.doc = doc
@@ -62,21 +63,18 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        addChild(pager)
-        pager.view.frame = view.bounds
-        pager.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(pager.view)
-        pager.didMove(toParent: self)
-        pager.dataSource = self
-        pager.delegate = self
-        // Taps are handled below, so a tap on a link or a highlight never turns the page.
-        for gesture in pager.gestureRecognizers where gesture is UITapGestureRecognizer { gesture.isEnabled = false }
-
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         tap.delegate = self
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
         tapGesture = tap
+
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
+            swipe.direction = direction
+            view.addGestureRecognizer(swipe)
+            swipes.append(swipe)
+        }
 
         // Selecting is done here rather than by the text views, whose gestures lose to page
         // turns and taps: hold on a word and drag to select more. There's no double tap, so
@@ -146,7 +144,7 @@ final class ReflowController: UIViewController, ReaderEngine {
         } else {
             page = align(Int(floor((locator.fraction ?? 0) * Double(layout.pageCount) + 1e-6)), layout)
         }
-        show(animated: false)
+        show()
     }
 
     func goTo(_ entry: TocEntry) {
@@ -155,19 +153,13 @@ final class ReflowController: UIViewController, ReaderEngine {
     }
 
     func turn(forward: Bool) {
-        guard let current = pager.viewControllers?.first as? ReflowPageController else { return }
+        guard current != nil else { return }
         clearSelection()
-        let next = forward ? pageAfter(current.key) : pageBefore(current.key)
-        guard let next else { return }
+        let from = PageKey(chapter: chapter, page: page)
+        guard let next = forward ? pageAfter(from) : pageBefore(from) else { return }
         let controller = pageController(next)
-        // A page curl can't start while another is in the air, so quick taps jump instead.
-        let animated = !curling
-        curling = curling || animated
-        pager.setViewControllers([controller], direction: forward ? .forward : .reverse, animated: animated) { [weak self] _ in
-            if animated { self?.curling = false }
-            self?.settle(on: next)
-        }
         settle(on: next)
+        turner.show(controller, style: appearance?.settings.pageTurn ?? .slide, forward: forward)
     }
 
     func isVisible(_ locator: Locator) -> Bool {
@@ -196,13 +188,10 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     func clearSelection() {
         for controller in pages.values { controller.clearSelection() }
-        pagerPan?.isEnabled = true
+        for swipe in swipes { swipe.isEnabled = true }
     }
 
-    /// Dragging the page is off while text is selected, so dragging a selection handle can't turn it.
-    private var pagerPan: UIPanGestureRecognizer? {
-        pager.gestureRecognizers.lazy.compactMap { $0 as? UIPanGestureRecognizer }.first
-    }
+    private var current: ReflowPageController? { turner.page as? ReflowPageController }
 
     /// Entries inside the current chapter count by their anchor's page, since one file
     /// often holds several chapters.
@@ -330,9 +319,10 @@ final class ReflowController: UIViewController, ReaderEngine {
         return PageKey(chapter: key.chapter - 1, page: align(previous.pageCount - 1, previous))
     }
 
-    private func show(animated: Bool) {
+    /// Shows the current page at once, as after a jump or a relayout.
+    private func show() {
         let key = PageKey(chapter: chapter, page: page)
-        pager.setViewControllers([pageController(key)], direction: .forward, animated: animated)
+        turner.show(pageController(key), style: nil, forward: true)
         settle(on: key)
     }
 
@@ -358,13 +348,13 @@ final class ReflowController: UIViewController, ReaderEngine {
         if let anchor, let index = layout.text.anchors[anchor] {
             page = align(layout.page(ofCharacter: index), layout)
         }
-        show(animated: false)
+        show()
     }
 
     // MARK: - Interaction
 
     fileprivate func selectionChanged(_ range: NSRange?, layout: ChapterLayout) {
-        pagerPan?.isEnabled = range == nil
+        for swipe in swipes { swipe.isEnabled = range == nil }
         delegate?.engineSelected(range.flatMap { selection(layout, $0) })
     }
 
@@ -407,12 +397,12 @@ final class ReflowController: UIViewController, ReaderEngine {
 
     /// Selects the word under the finger, then word by word up to wherever it is dragged.
     @objc private func selectWords(_ gesture: UILongPressGestureRecognizer) {
-        guard let current = pager.viewControllers?.first as? ReflowPageController else { return }
+        guard let current else { return }
         let point = gesture.location(in: current.view)
         switch gesture.state {
         case .began:
             guard current.beginSelecting(at: point) else { return }
-            pagerPan?.isEnabled = false
+            for swipe in swipes { swipe.isEnabled = false }
             UISelectionFeedbackGenerator().selectionChanged()
         case .changed:
             current.extendSelecting(to: point)
@@ -425,8 +415,12 @@ final class ReflowController: UIViewController, ReaderEngine {
         }
     }
 
+    @objc private func swiped(_ gesture: UISwipeGestureRecognizer) {
+        turn(forward: gesture.direction == .left)
+    }
+
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-        guard let current = pager.viewControllers?.first as? ReflowPageController else { return }
+        guard let current else { return }
         // A tap with text selected only clears the selection. Whether there was one is read
         // when the touch began: the text view clears it on the same tap.
         if hadSelection {
@@ -464,33 +458,12 @@ private func buildText(_ index: Int, doc: ReflowDocument, style: TextStyle) -> C
 
 private func clamp(_ n: Int, _ lo: Int, _ hi: Int) -> Int { min(max(n, lo), max(lo, hi)) }
 
-extension ReflowController: UIPageViewControllerDataSource, UIPageViewControllerDelegate {
-    func pageViewController(_ pvc: UIPageViewController, viewControllerAfter vc: UIViewController) -> UIViewController? {
-        guard let key = (vc as? ReflowPageController)?.key, let next = pageAfter(key) else { return nil }
-        return pageController(next)
-    }
-
-    func pageViewController(_ pvc: UIPageViewController, viewControllerBefore vc: UIViewController) -> UIViewController? {
-        guard let key = (vc as? ReflowPageController)?.key, let previous = pageBefore(key) else { return nil }
-        return pageController(previous)
-    }
-
-    func pageViewController(_ pvc: UIPageViewController, willTransitionTo pending: [UIViewController]) {
-        clearSelection()
-    }
-
-    func pageViewController(_ pvc: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let key = (pvc.viewControllers?.first as? ReflowPageController)?.key else { return }
-        settle(on: key)
-    }
-}
-
 extension ReflowController: UIGestureRecognizerDelegate {
     /// Taps are only watched; selecting takes the touch for itself.
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { g === tapGesture }
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        if g === tapGesture { hadSelection = (pager.viewControllers?.first as? ReflowPageController)?.hasSelection ?? false }
+        if g === tapGesture { hadSelection = current?.hasSelection ?? false }
         return true
     }
 }

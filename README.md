@@ -73,7 +73,8 @@ open Reader.xcodeproj
 ```
 
 The server is fixed at build time by the `READER_SERVER_URL` build setting: Debug builds
-use `http://localhost:8080` (which a simulator reaches but a phone doesn't) and Release
+use `http://mebnMBP.local:8080` (the dev Mac by its Bonjour name, which both a simulator and
+a phone on the same Wi-Fi reach) and Release
 builds `https://reader.marnil.dev`. Override it with e.g.
 `xcodebuild -scheme Reader READER_SERVER_URL=https://reader.example.com`.
 

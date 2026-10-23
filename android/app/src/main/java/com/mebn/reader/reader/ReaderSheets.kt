@@ -64,6 +64,7 @@ import com.mebn.reader.settings.FooterSettingsSection
 import com.mebn.reader.settings.HeaderSettingsSection
 import com.mebn.reader.settings.LayoutSettingsSection
 import com.mebn.reader.settings.PageSettingsSection
+import com.mebn.reader.settings.PageTurnPicker
 import com.mebn.reader.settings.PagesPicker
 import com.mebn.reader.settings.Segments
 import com.mebn.reader.settings.TextSettingsSection
@@ -224,7 +225,12 @@ fun AppearanceSheet(model: ReaderModel, appDark: Boolean, onDismiss: () -> Unit)
                     // Switching the page between light and dark switches the whole app.
                     AppearanceTab.PAGE -> PageSettingsSection(settings, appDark, { dark -> Actions.setApp { it.copy(theme = if (dark) ThemeMode.DARK else ThemeMode.LIGHT) } }, change)
                     AppearanceTab.LAYOUT -> {
-                        if (model.isFixed) PagesPicker(settings, change) else LayoutSettingsSection(settings, change)
+                        if (model.isFixed) {
+                            PagesPicker(settings, change)
+                            PageTurnPicker(settings, change)
+                        } else {
+                            LayoutSettingsSection(settings, change)
+                        }
                         Text("HEADER", style = sectionTitle, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
                         HeaderSettingsSection(settings, change)
                         Text("FOOTER", style = sectionTitle, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))

@@ -1,5 +1,14 @@
 export type ThemeMode = "light" | "dark" | "system";
 
+/** How the page changes on a turn. */
+export type PageTurn = "instant" | "fade" | "slide";
+
+export const PAGE_TURNS: [PageTurn, string][] = [
+  ["instant", "Instant"],
+  ["fade", "Fade"],
+  ["slide", "Slide"],
+];
+
 export interface ReaderSettings {
   /** Background ids for the page while the app is light and while it is dark. */
   lightBackground: string;
@@ -17,6 +26,7 @@ export interface ReaderSettings {
   /** Shows a book with its own styles (headings, alignment, fonts) instead of the reader's. */
   originalStyles: boolean;
   pages: 1 | 2;
+  pageTurn: PageTurn;
   /** What the header shows: in the toolbar, and above the text once the toolbar hides. */
   headerTitle: boolean;
   headerAuthor: boolean;
@@ -61,6 +71,7 @@ export const DEFAULT_READER: ReaderSettings = {
   hyphenate: true,
   originalStyles: false,
   pages: 1,
+  pageTurn: "slide",
   headerTitle: true,
   headerAuthor: false,
   headerChapter: false,
@@ -130,7 +141,8 @@ export function resolveBackground(settings: ReaderSettings, dark: boolean): Back
 
 /**
  * Older saved settings: one background for both modes, and a header that showed one
- * thing ("title", "chapter" or "none") rather than a set of switches.
+ * thing ("title", "chapter" or "none") rather than a set of switches. Also drops values
+ * this version can't use.
  */
 function migrate(parsed: Record<string, unknown>) {
   if (typeof parsed.header === "string" && !("headerTitle" in parsed)) {
@@ -141,6 +153,8 @@ function migrate(parsed: Record<string, unknown>) {
   if (old && !("lightBackground" in parsed) && !("darkBackground" in parsed)) {
     parsed[old.dark ? "darkBackground" : "lightBackground"] = old.id;
   }
+  // A page turn this version doesn't know, from a newer app, falls back to the default.
+  if ("pageTurn" in parsed && !PAGE_TURNS.some(([id]) => id === parsed.pageTurn)) delete parsed.pageTurn;
   return parsed;
 }
 

@@ -18,6 +18,8 @@ final class EpubDocument: ReflowDocument {
     private var spine: [Item] = []
     private var chapterIndex: [String: Int] = [:]
     private let images = NSCache<NSString, UIImage>()
+    private var sheets: [String: [Stylesheet]] = [:]
+    private let sheetsLock = NSLock()
 
     init(url: URL) throws {
         zip = try ZipArchive(url: url)
@@ -54,6 +56,7 @@ final class EpubDocument: ReflowDocument {
         let path = spine[index].path
         let doc = Markup.parse(try chapterSource(index))
         let body = doc.first("body") ?? doc.first("html") ?? doc
+        body.stylesheet = stylesheet(doc, path: path)
         body.sanitize()
 
         func rewrite(_ node: Node) {
@@ -76,6 +79,47 @@ final class EpubDocument: ReflowDocument {
         }
         rewrite(body)
         return body
+    }
+
+    /// A chapter's CSS: its linked style sheets and style blocks, in document order.
+    private func stylesheet(_ doc: Node, path: String) -> Stylesheet {
+        var parts: [Stylesheet] = []
+        func walk(_ node: Node) {
+            switch node.name {
+            case "style":
+                let sheet = Stylesheet(node.textContent)
+                for href in sheet.imports where !Paths.isExternal(href) { parts += loadSheet(Paths.resolve(path, href).path, depth: 1) }
+                parts.append(sheet)
+            case "link":
+                let rel = (node["rel"] ?? "").lowercased().split(separator: " ")
+                if rel.contains("stylesheet"), !rel.contains("alternate"), let href = node["href"], !Paths.isExternal(href) {
+                    parts += loadSheet(Paths.resolve(path, href).path, depth: 0)
+                }
+            default:
+                node.children.forEach(walk)
+            }
+        }
+        walk(doc)
+        return Stylesheet(parts)
+    }
+
+    /// A style sheet in the book, after the ones it imports.
+    private func loadSheet(_ path: String, depth: Int) -> [Stylesheet] {
+        sheetsLock.lock()
+        let cached = sheets[path]
+        sheetsLock.unlock()
+        if let cached { return cached }
+        guard let text = try? zip.text(path) else { return [] }
+        let sheet = Stylesheet(text)
+        var out: [Stylesheet] = []
+        if depth < 4 {
+            for href in sheet.imports where !Paths.isExternal(href) { out += loadSheet(Paths.resolve(path, href).path, depth: depth + 1) }
+        }
+        out.append(sheet)
+        sheetsLock.lock()
+        sheets[path] = out
+        sheetsLock.unlock()
+        return out
     }
 
     func resolveLink(_ href: String) -> LinkTarget? {

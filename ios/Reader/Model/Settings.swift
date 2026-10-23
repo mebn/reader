@@ -13,7 +13,7 @@ enum ThemeMode: String, Codable, CaseIterable {
 }
 
 enum LibraryTab: String, Codable, CaseIterable, Identifiable {
-    case all, books, highlights, notes, bookmarks
+    case all, books, bookmarks, highlights, notes
     var id: String { rawValue }
 
     var label: String {
@@ -29,6 +29,11 @@ enum LibraryTab: String, Codable, CaseIterable, Identifiable {
 
 enum TextAlign: String, Codable {
     case left, justify
+}
+
+/// How a page gives way to the next.
+enum PageTurn: String, Codable {
+    case instant, fade, slide
 }
 
 /// Settings for how books look. Stored as JSON in the "reader" scope (defaults) and in
@@ -47,7 +52,10 @@ struct ReaderSettings: Codable, Equatable {
     var sideMargin: Double = 20
     var align: TextAlign = .justify
     var hyphenate = true
+    /// Shows the book in its own CSS instead of the reader's look.
+    var originalStyles = false
     var pages = 1
+    var pageTurn: PageTurn = .slide
     /// What the header shows.
     var headerTitle = true
     var headerAuthor = false
@@ -84,7 +92,9 @@ struct ReaderSettings: Codable, Equatable {
         sideMargin = v(.sideMargin, d.sideMargin)
         align = v(.align, d.align)
         hyphenate = v(.hyphenate, d.hyphenate)
+        originalStyles = v(.originalStyles, d.originalStyles)
         pages = v(.pages, d.pages) == 2 ? 2 : 1
+        pageTurn = v(.pageTurn, d.pageTurn)
         headerTitle = v(.headerTitle, d.headerTitle)
         headerAuthor = v(.headerAuthor, d.headerAuthor)
         headerChapter = v(.headerChapter, d.headerChapter)
@@ -97,7 +107,7 @@ struct ReaderSettings: Codable, Equatable {
 
     /// Settings that change the text layout, used to cache page counts.
     func layoutKey(width: CGFloat, height: CGFloat) -> String {
-        [font, "\(fontSize)", "\(lineHeight)", "\(weight)", "\(tracking)", "\(paragraphSpacing)", "\(sideMargin)", align.rawValue, "\(hyphenate)", "\(pages)", "\(Int(width))", "\(Int(height))"]
+        [font, "\(fontSize)", "\(lineHeight)", "\(weight)", "\(tracking)", "\(paragraphSpacing)", "\(sideMargin)", align.rawValue, "\(hyphenate)", "\(originalStyles)", "\(pages)", "\(Int(width))", "\(Int(height))"]
             .joined(separator: "|")
     }
 

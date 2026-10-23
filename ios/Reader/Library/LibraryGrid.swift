@@ -177,38 +177,58 @@ struct ContinueReadingCard: View {
                 cover
                     .frame(width: 96)
                     .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text("CONTINUE READING")
                         .font(.caption2.weight(.semibold))
                         .tracking(1.6)
                         .foregroundStyle(.secondary)
+                    // In the login page's title face, as the book's own name on its spine would be.
                     Text(book.title)
-                        .font(.custom("Literata", size: 24, relativeTo: .title2).weight(.medium))
+                        .font(.custom(AppFont.family, size: 26, relativeTo: .title2).weight(.medium))
                         .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                        .padding(.top, 8)
                     if !book.author.isEmpty {
-                        Text(book.author).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                        Text(book.author)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .padding(.top, 4)
                     }
-                    HStack(spacing: 10) {
-                        ProgressView(value: percent).tint(.primary.opacity(0.7))
-                        Text("\(Int((percent * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Spacer(minLength: 16)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(value: percent)
+                            .tint(.primary.opacity(0.7))
+                            .frame(maxWidth: 320)
+                        Text("\(Int((percent * 100).rounded()))% · \(formatWhen(at).capitalizedFirst)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: 320)
-                    .padding(.top, 8)
-                    Text("Last read \(formatWhen(at))").font(.caption).foregroundStyle(.secondary)
                 }
+                // The cover's height, so the progress sits at its foot and the title at its head.
+                .frame(maxHeight: .infinity, alignment: .top)
                 Spacer(minLength: 0)
             }
+            // Lets the text column stretch to the cover's height.
+            .fixedSize(horizontal: false, vertical: true)
             .padding(22)
             .background {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill().blur(radius: 40).saturation(1.5).opacity(0.55)
                 }
             }
+            .background(.fill.quaternary)
             .clipShape(.rect(cornerRadius: 28))
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 28))
+            // Drawn rather than glass: glass fades in each time the library shows again, so
+            // closing a book left the card without its edge for a moment.
+            .overlay {
+                RoundedRectangle(cornerRadius: 28)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.38), .white.opacity(0.08), .white.opacity(0.24)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+            }
             .contentShape(.rect(cornerRadius: 28))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
         .accessibilityLabel("Continue reading \(book.title)")
         .contextMenu {
             Button("Open", systemImage: "book") { opener.open(book, newWindow: false) }
@@ -225,6 +245,15 @@ struct ContinueReadingCard: View {
         } else {
             BookCover(book: book)
         }
+    }
+}
+
+/// Gives a little under the finger, as glass would.
+private struct Pressable: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.smooth(duration: 0.2), value: configuration.isPressed)
     }
 }
 
@@ -286,6 +315,11 @@ struct BookDetails: View {
 }
 
 /// "today", "yesterday", "3 days ago", then a date.
+private extension String {
+    /// "yesterday" as "Yesterday", leaving the rest alone.
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+
 func formatWhen(_ at: Int64) -> String {
     let date = Date(timeIntervalSince1970: Double(at) / 1000)
     let calendar = Calendar.current

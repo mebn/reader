@@ -69,8 +69,8 @@ struct ReaderView: View {
             CornerButtons(model: model, color: background.text)
 
             if model.chrome || model.status != .ready {
-                ReaderToolbar(model: model, header: header(book), onClose: onClose)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                ReaderToolbar(model: model, onClose: onClose)
+                    .transition(.opacity)
             }
 
             if model.isFixed, let selection = model.selection {
@@ -201,12 +201,12 @@ private struct EngineView: UIViewControllerRepresentable {
 
 private struct ReaderToolbar: View {
     let model: ReaderModel
-    var header: HeaderLine?
     var onClose: (() -> Void)?
 
     var body: some View {
         VStack {
-            GlassEffectContainer(spacing: 12) {
+            // Kept apart, or glass this close together melts into one shape.
+            GlassEffectContainer(spacing: 0) {
                 HStack(spacing: 12) {
                     if let onClose {
                         Button(action: onClose) {
@@ -221,7 +221,7 @@ private struct ReaderToolbar: View {
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: 2) {
+                    HStack(spacing: 10) {
                         ToolbarIcon(symbol: "list.bullet", label: "Contents and notes", id: "contents") { model.showContents = true }
                         ToolbarIcon(symbol: model.bookmark != nil ? "bookmark.fill" : "bookmark", label: model.bookmark != nil ? "Remove bookmark" : "Bookmark this page", id: "bookmark") {
                             model.toggleBookmark()
@@ -229,17 +229,6 @@ private struct ReaderToolbar: View {
                         .disabled(model.position == nil)
                         ToolbarIcon(symbol: "textformat.size", label: "Appearance", id: "appearance") { model.showAppearance = true }
                     }
-                    .padding(.horizontal, 6)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                }
-            }
-            .overlay {
-                if let header, model.status == .ready {
-                    header
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 150)
-                        .allowsHitTesting(false)
                 }
             }
             .padding(.horizontal, 16)
@@ -259,11 +248,13 @@ private struct ToolbarIcon: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.body.weight(.medium))
-                .frame(width: 44, height: 44)
-                .contentShape(.rect)
+                .frame(width: 24, height: 24)
                 .contentTransition(.symbolEffect(.replace))
         }
-        .buttonStyle(.plain)
+        // Each its own glass button, like the close button beside them.
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
         .accessibilityLabel(label)
         .accessibilityIdentifier("reader.\(id)")
     }

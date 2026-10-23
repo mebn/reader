@@ -48,7 +48,12 @@ enum API {
         do {
             (data, response) = try await URLSession.shared.data(for: req)
         } catch {
+            #if DEBUG
+            // Which server and why, so a dev build on a phone says what's wrong.
+            throw APIError(message: "Can't reach \(session.serverUrl): \(error.localizedDescription) (\((error as NSError).code))", status: 0)
+            #else
             throw APIError(message: "Can't reach the server", status: 0)
+            #endif
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {

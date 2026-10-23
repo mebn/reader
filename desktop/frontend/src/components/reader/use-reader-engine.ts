@@ -170,24 +170,24 @@ export function useReaderEngine({ book, container, appearance, annotations, onAn
   );
 
   // Turns run one after another, but each only waits for the previous page to be laid
-  // out, not for its animation, so pressing a key five times turns five pages.
+  // out, not for its animation, which the next turn cuts short; so pressing a key five
+  // times quickly turns five pages and lands on the last without playing them all.
   const turn = useCallback(
     (direction: TurnDirection) => {
-      const el = container.current;
       const t = turns.current;
-      if (!renderer.current || !el || t.pending >= MAX_QUEUED_TURNS) return t.queue;
+      if (!renderer.current || t.pending >= MAX_QUEUED_TURNS) return t.queue;
       getSelection()?.removeAllRanges();
       holdPosition.current = false;
       t.pending++;
       t.queue = t.queue
         .then(async () => {
-          if (renderer.current) await turnPage(el, renderer.current, direction);
+          if (renderer.current) await turnPage(renderer.current, direction, latest.current.appearance.settings.pageTurn);
         })
         .catch(console.error)
         .finally(() => t.pending--);
       return t.queue;
     },
-    [container],
+    [],
   );
 
   // Once the offered page is showing, by any route, there's nothing left to offer.

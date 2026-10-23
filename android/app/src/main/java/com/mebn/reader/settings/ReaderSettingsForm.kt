@@ -17,11 +17,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +50,7 @@ import com.mebn.reader.formats.Node
 import com.mebn.reader.model.BookFonts
 import com.mebn.reader.model.FontOption
 import com.mebn.reader.model.PageBackground
+import com.mebn.reader.model.PageTurn
 import com.mebn.reader.model.ReaderSettings
 import com.mebn.reader.model.TextAlign
 import com.mebn.reader.reader.reflow.ChapterLayout
@@ -144,20 +149,21 @@ fun TextSettingsSection(settings: ReaderSettings, onChange: (ReaderSettings) -> 
             }
         }
     }
-    SliderRow("Size", settings.fontSize, 12.0..34.0, 1.0, { "${it.roundToInt()}" }) { onChange(settings.copy(fontSize = it)) }
-    SliderRow("Line height", settings.lineHeight, 1.1..2.4, 0.05, { String.format(Locale.US, "%.2f", it) }) { onChange(settings.copy(lineHeight = it)) }
-    SliderRow("Weight", settings.weight, 300.0..700.0, 50.0, { "${it.roundToInt()}" }) { onChange(settings.copy(weight = it)) }
-    SliderRow("Spacing", settings.tracking, -0.03..0.12, 0.005, { String.format(Locale.US, "%.1f", it * 100) }) { onChange(settings.copy(tracking = it)) }
+    StepperRow("Size", settings.fontSize, 12.0..34.0, 1.0, { "${it.roundToInt()}" }) { onChange(settings.copy(fontSize = it)) }
+    StepperRow("Line height", settings.lineHeight, 1.1..2.4, 0.05, { String.format(Locale.US, "%.2f", it) }) { onChange(settings.copy(lineHeight = it)) }
+    StepperRow("Weight", settings.weight, 300.0..700.0, 50.0, { "${it.roundToInt()}" }) { onChange(settings.copy(weight = it)) }
+    StepperRow("Spacing", settings.tracking, -0.03..0.12, 0.005, { String.format(Locale.US, "%.1f", it * 100) }) { onChange(settings.copy(tracking = it)) }
 }
 
 @Composable
 fun LayoutSettingsSection(settings: ReaderSettings, onChange: (ReaderSettings) -> Unit) {
-    SliderRow("Margins", settings.sideMargin, 0.0..40.0, 1.0, { if (it == 0.0) "None" else "${it.roundToInt()}%" }) { onChange(settings.copy(sideMargin = it)) }
-    SliderRow("Paragraphs", settings.paragraphSpacing, 0.0..2.0, 0.1, { String.format(Locale.US, "%.1f", it) }) { onChange(settings.copy(paragraphSpacing = it)) }
+    StepperRow("Margins", settings.sideMargin, 0.0..40.0, 1.0, { if (it == 0.0) "None" else "${it.roundToInt()}%" }) { onChange(settings.copy(sideMargin = it)) }
+    StepperRow("Paragraphs", settings.paragraphSpacing, 0.0..2.0, 0.1, { String.format(Locale.US, "%.1f", it) }) { onChange(settings.copy(paragraphSpacing = it)) }
     FormRow("Align") {
         Segments(listOf(TextAlign.LEFT to "Left", TextAlign.JUSTIFY to "Justify"), settings.align, Modifier.width(200.dp)) { onChange(settings.copy(align = it)) }
     }
     PagesPicker(settings, onChange)
+    PageTurnPicker(settings, onChange)
     SwitchRow("Hyphenation", settings.hyphenate) { onChange(settings.copy(hyphenate = it)) }
 }
 
@@ -166,6 +172,13 @@ fun LayoutSettingsSection(settings: ReaderSettings, onChange: (ReaderSettings) -
 fun PagesPicker(settings: ReaderSettings, onChange: (ReaderSettings) -> Unit) {
     FormRow("Pages") {
         Segments(listOf(1 to "One", 2 to "Two"), settings.pages, Modifier.width(200.dp)) { onChange(settings.copy(pages = it)) }
+    }
+}
+
+@Composable
+fun PageTurnPicker(settings: ReaderSettings, onChange: (ReaderSettings) -> Unit) {
+    FormRow("Page turn") {
+        Segments(PageTurn.entries.map { it to it.label }, settings.pageTurn, Modifier.width(240.dp)) { onChange(settings.copy(pageTurn = it)) }
     }
 }
 
@@ -185,23 +198,32 @@ fun FooterSettingsSection(settings: ReaderSettings, onChange: (ReaderSettings) -
     SwitchRow("Percent read", settings.footerPercent) { onChange(settings.copy(footerPercent = it)) }
 }
 
+/** A setting stepped a notch at a time: [−] value [+]. */
 @Composable
-fun SliderRow(label: String, value: Double, range: ClosedFloatingPointRange<Double>, step: Double, format: (Double) -> String, onChange: (Double) -> Unit) {
+fun StepperRow(label: String, value: Double, range: ClosedFloatingPointRange<Double>, step: Double, format: (Double) -> String, onChange: (Double) -> Unit) {
+    fun change(direction: Int) {
+        val next = ((value + direction * step) / step).roundToInt() * step
+        onChange(next.coerceIn(range.start, range.endInclusive))
+    }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, Modifier.width(96.dp), style = MaterialTheme.typography.bodyLarge)
-        Slider(
-            value = value.toFloat(),
-            onValueChange = { onChange(((it / step).roundToInt() * step).coerceIn(range.start, range.endInclusive)) },
-            valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            format(value),
-            Modifier.width(42.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = UiTextAlign.End,
-        )
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Row(
+            Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { change(-1) }, enabled = value - range.start > step / 2) {
+                Icon(Icons.Filled.Remove, contentDescription = "Decrease $label")
+            }
+            Text(
+                format(value),
+                Modifier.width(52.dp),
+                style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
+                textAlign = UiTextAlign.Center,
+            )
+            IconButton(onClick = { change(1) }, enabled = range.endInclusive - value > step / 2) {
+                Icon(Icons.Filled.Add, contentDescription = "Increase $label")
+            }
+        }
     }
 }
 

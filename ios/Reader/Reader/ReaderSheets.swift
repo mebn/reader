@@ -12,14 +12,38 @@ struct ContentsSheet: View {
         case bookmarks = "Bookmarks"
     }
 
+    private var notes: [Annotation] { sorted(.highlight) }
+    private var bookmarks: [Annotation] { sorted(.bookmark) }
+
+    private func sorted(_ kind: AnnotationKind) -> [Annotation] {
+        model.annotations.filter { $0.kind == kind }.sorted { $0.position.sortKey < $1.position.sortKey }
+    }
+
+    private var isEmpty: Bool {
+        switch tab {
+        case .contents: model.toc.isEmpty
+        case .notes: notes.isEmpty
+        case .bookmarks: bookmarks.isEmpty
+        }
+    }
+
+    /// One list whose rows change with the tab, as the appearance sheet keeps one form: a
+    /// list per tab made the bar lay itself out again, and the tabs jump, on every switch.
     var body: some View {
         NavigationStack {
-            Group {
-                switch tab {
-                case .contents: contents
-                case .notes: annotationList(model.annotations.filter { $0.kind == .highlight })
-                case .bookmarks: annotationList(model.annotations.filter { $0.kind == .bookmark })
+            ScrollViewReader { proxy in
+                List {
+                    switch tab {
+                    case .contents: contents
+                    case .notes: annotationRows(notes)
+                    case .bookmarks: annotationRows(bookmarks)
+                    }
                 }
+                .listStyle(.plain)
+                .overlay { if isEmpty { empty } }
+                // The chapter being read is centered rather than the list starting at the top.
+                .onAppear { centerCurrent(proxy) }
+                .onChange(of: tab) { if tab == .contents { centerCurrent(proxy) } }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -30,7 +54,7 @@ struct ContentsSheet: View {
                     .pickerStyle(.segmented)
                     // A set width keeps the segments equal; sized to their labels, the bolder
                     // selected one would resize the control and shift the whole bar on every tap.
-                    .frame(width: 280)
+                    .frame(width: 240)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(role: .close) { dismiss() }
@@ -39,50 +63,42 @@ struct ContentsSheet: View {
         }
     }
 
-    private var contents: some View {
-        ScrollViewReader { proxy in
-            List(model.toc) { entry in
-                let current = entry == model.currentEntry
-                Button {
-                    model.go(entry)
-                    dismiss()
-                } label: {
-                    Text(entry.label)
-                        .fontWeight(current ? .semibold : .regular)
-                        .foregroundStyle(.primary)
-                        .padding(.leading, CGFloat(entry.depth) * 16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
-                }
-                .listRowBackground(current ? Color.accentColor.opacity(0.12) : Color.clear)
-                .id(entry.id)
+    private func centerCurrent(_ proxy: ScrollViewProxy) {
+        if let id = model.currentEntry?.id { proxy.scrollTo(id, anchor: .center) }
+    }
+
+    @ViewBuilder private var contents: some View {
+        ForEach(model.toc) { entry in
+            let current = entry == model.currentEntry
+            Button {
+                model.go(entry)
+                dismiss()
+            } label: {
+                Text(entry.label)
+                    .fontWeight(current ? .semibold : .regular)
+                    .foregroundStyle(.primary)
+                    .padding(.leading, CGFloat(entry.depth) * 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
             }
-            .listStyle(.plain)
-            .overlay { if model.toc.isEmpty { empty } }
-            // The chapter being read is centered rather than the list starting at the top.
-            .onAppear {
-                if let id = model.currentEntry?.id { proxy.scrollTo(id, anchor: .center) }
-            }
+            .listRowBackground(current ? Color.accentColor.opacity(0.12) : Color.clear)
+            .id(entry.id)
         }
     }
 
-    private func annotationList(_ list: [Annotation]) -> some View {
-        List {
-            ForEach(list.sorted { $0.position.sortKey < $1.position.sortKey }) { a in
-                Button {
-                    model.go(toAnnotation: a.position)
-                    dismiss()
-                } label: {
-                    AnnotationRow(annotation: a)
-                }
-                .buttonStyle(.plain)
-                .swipeActions {
-                    Button("Remove", systemImage: "trash", role: .destructive) { Actions.remove(a) }
-                }
+    private func annotationRows(_ list: [Annotation]) -> some View {
+        ForEach(list) { a in
+            Button {
+                model.go(toAnnotation: a.position)
+                dismiss()
+            } label: {
+                AnnotationRow(annotation: a)
+            }
+            .buttonStyle(.plain)
+            .swipeActions {
+                Button("Remove", systemImage: "trash", role: .destructive) { Actions.remove(a) }
             }
         }
-        .listStyle(.plain)
-        .overlay { if list.isEmpty { empty } }
     }
 
     private var empty: some View {
@@ -110,7 +126,7 @@ struct AnnotationRow: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text(annotation.text)
-                    .font(.custom("Literata", size: 15))
+                    .font(.system(size: 15))
                     .lineLimit(4)
                     .padding(.leading, 10)
                     .overlay(alignment: .leading) {
@@ -171,6 +187,7 @@ struct AppearanceSheet: View {
                     Section {
                         if model.isFixed {
                             PagesPicker(settings: settings)
+                            PageTurnPicker(settings: settings)
                         } else {
                             LayoutSettingsSection(settings: settings)
                         }
@@ -178,13 +195,29 @@ struct AppearanceSheet: View {
                     Section("Header") { HeaderSettingsSection(settings: settings) }
                     Section("Footer") { FooterSettingsSection(settings: settings) }
                 }
-                Section {} footer: {
+                // At the end of every tab rather than pinned over the form, so they don't cover it.
+                Section {
+                    HStack {
+                        Button("Use defaults") { model.useDefaults() }
+                            .buttonStyle(.glass)
+                        Spacer()
+                        Button("Use for all books") { model.makeDefault() }
+                            .buttonStyle(.glassProminent)
+                            // The tint is near white in dark mode, where the default white label vanishes.
+                            .foregroundStyle(Color(uiColor: .systemBackground))
+                    }
+                    .controlSize(.large)
+                    .disabled(!model.hasOverride)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                } footer: {
                     Text(model.hasOverride ? "This book has settings of its own." : "Changes apply to this book.")
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
                 }
             }
             // Rows on plain glass would show the page through them.
             .scrollContentBackground(.visible)
-            .scrollEdgeEffectStyle(.hard, for: .bottom)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -194,28 +227,11 @@ struct AppearanceSheet: View {
                     .pickerStyle(.segmented)
                     // A set width keeps the segments equal; sized to their labels, the bolder
                     // selected one would resize the control and shift the whole bar on every tap.
-                    .frame(width: 280)
+                    .frame(width: 240)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(role: .close) { dismiss() }
                 }
-            }
-            // Not a bottom toolbar: its glass keeps the old scheme when the page switches
-            // between light and dark. Always there, so the sheet doesn't jump on the first change.
-            .safeAreaBar(edge: .bottom) {
-                HStack {
-                    Button("Use defaults") { model.useDefaults() }
-                        .buttonStyle(.glass)
-                    Spacer()
-                    Button("Use for all books") { model.makeDefault() }
-                        .buttonStyle(.glassProminent)
-                        // The tint is near white in dark mode, where the default white label vanishes.
-                        .foregroundStyle(Color(uiColor: .systemBackground))
-                }
-                .controlSize(.large)
-                .disabled(!model.hasOverride)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
             }
         }
     }
@@ -233,7 +249,7 @@ struct AnnotationEditor: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 Text(annotation.text)
-                    .font(.custom("Literata", size: 15))
+                    .font(.system(size: 15))
                     .lineLimit(3)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 10)

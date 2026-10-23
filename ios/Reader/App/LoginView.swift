@@ -1,120 +1,76 @@
 import SwiftUI
 
-/// Signing in, made to look like the desktop app's: a book that reads itself over a desk
-/// of bookish things, then Google or email.
+/// Signing in: the name, then email (or Google, when it's offered).
 struct LoginView: View {
+    /// Google sign-in is hidden for now; with only email there's nothing to choose.
+    static let offersGoogle = false
+
     private enum Step { case choose, email }
 
-    @State private var step = Step.choose
+    @State private var step = offersGoogle ? Step.choose : .email
+    /// How much of the screen the keyboard covers, 0 when it's down. Only grows while it's up,
+    /// so the form doesn't bob when the keyboard changes a little between fields.
+    @State private var keyboard: CGFloat = 0
+    @State private var formHeight: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
-            ScrollView {
-                VStack(spacing: 0) {
-                    HeroBook(width: min(max(72, geo.size.height * 0.14), 128))
-                    Headline().padding(.top, 28)
-                    // Both steps share one slot, so it keeps the taller one's height and nothing above it moves.
-                    ZStack {
+            // At a set height, not centred: centred, it moved with every keyboard. The keyboard
+            // is kept out of the layout and only lifts the form as far as it has to, so the
+            // buttons under the fields stay in sight, with a little room above the keyboard.
+            let top = max(40, min(geo.size.height * 0.22, geo.size.height - 560))
+            let keyboardTop = geo.size.height + geo.safeAreaInsets.bottom - keyboard
+            let lift = keyboard > 0 ? max(0, top + formHeight + 16 - keyboardTop) : 0
+            VStack(spacing: 0) {
+                Text("Reader")
+                    .font(.custom(AppFont.family, size: 48, relativeTo: .largeTitle).weight(.medium))
+                    .accessibilityAddTraits(.isHeader)
+                Text("Every book, everywhere.")
+                    .font(.custom(AppFont.family, size: 17, relativeTo: .body))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+                // Both steps share one slot, so it keeps the taller one's height and nothing above it moves.
+                ZStack {
+                    if Self.offersGoogle {
                         Panel(active: step == .choose) {
                             ChooseStep { step = .email }
                         }
-                        Panel(active: step == .email) {
-                            EmailStep(active: step == .email) { step = .choose }
-                        }
                     }
-                    .padding(.top, 32)
+                    Panel(active: step == .email) {
+                        EmailStep(active: step == .email, onBack: Self.offersGoogle ? { step = .choose } : nil)
+                    }
                 }
-                .frame(maxWidth: 384)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 40)
-                .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                .padding(.top, 40)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollDismissesKeyboard(.interactively)
+            .frame(maxWidth: 384)
+            .padding(.horizontal, 24)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
+            .padding(.top, top)
+            .offset(y: -lift)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .contentShape(.rect)
+            // A tap off the fields puts the keyboard away.
+            .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         }
-        .background {
-            ZStack {
-                Backdrop()
-                FloatingObjects()
-            }
-            .ignoresSafeArea()
+        .ignoresSafeArea(.keyboard)
+        .background(Color(uiColor: .systemBackground))
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect, frame.height > keyboard else { return }
+            withAnimation(.settle(0.35)) { keyboard = frame.height }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.settle(0.35)) { keyboard = 0 }
         }
     }
 }
 
-/// Soft colour that slowly wanders behind everything, over faintly ruled paper.
-private struct Backdrop: View {
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var calm
-    @State private var drift = false
-
-    var body: some View {
-        let dark = scheme == .dark
-        GeometryReader { geo in
-            let size = geo.size
-            ZStack(alignment: .topLeading) {
-                Color(hex: dark ? 0x171411 : 0xfbf7ee)
-                EllipticalGradient(colors: [Color(hex: dark ? 0x2c241d : 0xfff7e6), .clear], center: .top, endRadiusFraction: 0.6)
-                blob(dark ? Color(hex: 0xc9532c).opacity(0.2) : Color(hex: 0xf0b98a).opacity(0.45), size: 360,
-                     at: CGPoint(x: -96, y: size.height * 0.08), by: CGSize(width: 60, height: 40), duration: 16)
-                blob(dark ? Color(hex: 0x46607f).opacity(0.25) : Color(hex: 0x9ec4b0).opacity(0.45), size: 380,
-                     at: CGPoint(x: size.width + 80 - 380, y: size.height * 0.3), by: CGSize(width: -50, height: -30), duration: 19)
-                blob(dark ? Color(hex: 0xe0a93c).opacity(0.12) : Color(hex: 0xf3d58a).opacity(0.45), size: 420,
-                     at: CGPoint(x: size.width * 0.3, y: size.height + 160 - 420), by: CGSize(width: 40, height: -40), duration: 22)
-                Canvas { ctx, size in
-                    for y in stride(from: 31.0, to: size.height, by: 32) {
-                        ctx.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)), with: .color(Color(red: 120 / 255, green: 100 / 255, blue: 80 / 255).opacity(0.08)))
-                    }
-                }
-                .opacity(dark ? 0.6 : 0.35)
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .onAppear { if !calm { drift = true } }
-    }
-
-    /// Wanders out by `by` and back over `duration` seconds, swelling on the way.
-    private func blob(_ color: Color, size: CGFloat, at origin: CGPoint, by: CGSize, duration: Double) -> some View {
-        Circle()
-            .fill(color)
-            .frame(width: size, height: size)
-            .blur(radius: 64)
-            .scaleEffect(drift ? 1.15 : 1)
-            .offset(x: origin.x + (drift ? by.width : 0), y: origin.y + (drift ? by.height : 0))
-            .animation(.easeInOut(duration: duration / 2).repeatForever(autoreverses: true), value: drift)
-    }
+extension Color {
+    init(hex: UInt32) { self.init(uiColor: UIColor(hex: hex)) }
 }
 
-private struct Headline: View {
-    private static let title = "Reader"
-
-    @State private var shown = false
-
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 0) {
-                ForEach(Array(Self.title.enumerated()), id: \.offset) { i, letter in
-                    Text(String(letter))
-                        .offset(y: shown ? 0 : 64)
-                        .opacity(shown ? 1 : 0)
-                        .animation(.settle(0.7).delay(0.45 + Double(i) * 0.06), value: shown)
-                        .clipped()
-                }
-            }
-            .font(.custom("Literata", size: 48, relativeTo: .largeTitle).weight(.medium))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Self.title)
-            .accessibilityAddTraits(.isHeader)
-
-            Text("Every book, everywhere.")
-                .foregroundStyle(.secondary)
-                .opacity(shown ? 1 : 0)
-                .offset(y: shown ? 0 : 8)
-                .animation(.settle(0.7).delay(0.95), value: shown)
-        }
-        .onAppear { shown = true }
-    }
+extension Animation {
+    /// Quick to start, long to settle.
+    static func settle(_ duration: Double) -> Animation { .timingCurve(0.22, 1, 0.36, 1, duration: duration) }
 }
 
 /// One of the steps that trade places in the slot under the title.
@@ -130,19 +86,6 @@ private struct Panel<Content: View>: View {
             .animation(.settle(0.35), value: active)
             .allowsHitTesting(active)
             .accessibilityHidden(!active)
-    }
-}
-
-/// Rises into place after the title; each step of a column staggers after the last.
-private struct Rise: ViewModifier {
-    var index: Int
-    @State private var shown = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 16)
-            .onAppear { withAnimation(.settle(0.6).delay(0.9 + Double(index) * 0.1)) { shown = true } }
     }
 }
 
@@ -166,13 +109,11 @@ private struct ChooseStep: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(.white, in: .capsule)
-                .overlay(Capsule().strokeBorder(.black.opacity(0.05)))
-                .shadow(color: Color(red: 60 / 255, green: 40 / 255, blue: 20 / 255).opacity(0.35), radius: 12, y: 8)
+                .overlay(Capsule().strokeBorder(.black.opacity(scheme == .dark ? 0 : 0.15)))
                 .contentShape(.capsule)
             }
             .buttonStyle(PressStyle())
             .disabled(waiting)
-            .modifier(Rise(index: 0))
 
             Button(action: onEmail) {
                 HStack(spacing: 12) {
@@ -183,12 +124,11 @@ private struct ChooseStep: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(scheme == .dark ? Color.white.opacity(0.1) : Color(hex: 0x2b2622), in: .capsule)
-                .shadow(color: Color(red: 30 / 255, green: 20 / 255, blue: 10 / 255).opacity(scheme == .dark ? 0 : 0.6), radius: 12, y: 8)
+                // Beside Google's white button in the dark, a second white one would look the same.
+                .background(scheme == .dark ? Color.white.opacity(0.14) : .black, in: .capsule)
                 .contentShape(.capsule)
             }
             .buttonStyle(PressStyle())
-            .modifier(Rise(index: 1))
 
             if !error.isEmpty {
                 Text(error)
@@ -223,7 +163,7 @@ private struct EmailStep: View {
     private enum Mode { case signIn, signUp }
 
     var active: Bool
-    var onBack: () -> Void
+    var onBack: (() -> Void)?
 
     @Environment(\.colorScheme) private var scheme
     @State private var mode = Mode.signIn
@@ -235,25 +175,23 @@ private struct EmailStep: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            // `.username`, not `.emailAddress`: it pairs with the password for autofill and gets
+            // the same bar over the keyboard, so the keyboard keeps its height between the two.
             TextField("Email", text: $email)
-                .textContentType(.emailAddress)
+                .textContentType(.username)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($field, equals: 0)
                 .submitLabel(.next)
                 .onSubmit { field = 1 }
-                .modifier(FieldStyle())
+                .modifier(FieldStyle { field = 0 })
             SecureField("Password", text: $password)
                 .textContentType(mode == .signIn ? .password : .newPassword)
                 .focused($field, equals: 1)
                 .submitLabel(.go)
                 .onSubmit(submit)
-                .modifier(FieldStyle())
-
-            if !error.isEmpty {
-                Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
-            }
+                .modifier(FieldStyle { field = 1 })
 
             Button(action: submit) {
                 HStack(spacing: 8) {
@@ -261,18 +199,20 @@ private struct EmailStep: View {
                     Text(mode == .signIn ? "Sign in" : "Create account")
                 }
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(scheme == .dark ? Color(hex: 0x171411) : .white)
+                .foregroundStyle(scheme == .dark ? .black : .white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(scheme == .dark ? Color(hex: 0xf1ece4) : Color(hex: 0x2b2622), in: .capsule)
+                .background(scheme == .dark ? Color.white.opacity(0.92) : .black, in: .capsule)
                 .contentShape(.capsule)
             }
             .buttonStyle(PressStyle())
             .disabled(busy)
 
             HStack {
-                Button(action: back) {
-                    Label("Back", systemImage: "arrow.left")
+                if onBack != nil {
+                    Button(action: back) {
+                        Label("Back", systemImage: "arrow.left")
+                    }
                 }
                 Spacer()
                 Button(mode == .signIn ? "Create account" : "I have an account") {
@@ -284,6 +224,16 @@ private struct EmailStep: View {
             .foregroundStyle(.secondary)
             .padding(.top, 4)
             .padding(.horizontal, 4)
+
+            // Under everything, with room kept for two lines, so it coming and going doesn't
+            // move the button or change how far the keyboard lifts the form.
+            Text(error)
+                .font(.footnote)
+                .foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+                .frame(minHeight: 36, alignment: .top)
+                .opacity(error.isEmpty ? 0 : 1)
+                .animation(.settle(0.35), value: error)
         }
         .onChange(of: active) {
             // Focus the first field once this step has taken its turn.
@@ -301,7 +251,7 @@ private struct EmailStep: View {
     private func back() {
         field = nil
         error = ""
-        onBack()
+        onBack?()
     }
 
     private func submit() {
@@ -331,15 +281,18 @@ private struct EmailStep: View {
 }
 
 private struct FieldStyle: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
+    /// Focuses the field; the text field itself is only a line tall, so a tap on the rest of
+    /// the capsule would otherwise miss it.
+    var focus: () -> Void
 
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, 18)
             .frame(height: 48)
-            .background(.ultraThinMaterial, in: .capsule)
-            .background(scheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.8), in: .capsule)
+            .background(Color(uiColor: .secondarySystemBackground), in: .capsule)
             .overlay(Capsule().strokeBorder(.primary.opacity(0.1)))
+            .contentShape(.capsule)
+            .onTapGesture(perform: focus)
     }
 }
 

@@ -41,6 +41,7 @@ import com.mebn.reader.formats.TocEntry
 import com.mebn.reader.model.Annotation
 import com.mebn.reader.model.AnnotationKind
 import com.mebn.reader.model.Locator
+import com.mebn.reader.model.PageTurn
 import com.mebn.reader.model.highlightColor
 import com.mebn.reader.reader.Appearance
 import com.mebn.reader.reader.PageGestures
@@ -294,7 +295,7 @@ class FixedEngine(
             // Dark PDF pages are inverted with their hues kept, as the desktop app does.
             val invert = pdf != null && background?.dark == true
             val pageColor = Color(background?.color ?: 0)
-            PageTurnerView(turner, this@FixedEngine, background = pageColor) { offset ->
+            PageTurnerView(turner, this@FixedEngine, look?.settings?.pageTurn ?: PageTurn.SLIDE, background = pageColor) { offset ->
                 val first = when (offset) {
                     0 -> page
                     1 -> page + span
@@ -451,7 +452,7 @@ class FixedEngine(
         delegate.engineSelected(TextSelection(Locator(page = sel.page, start = sel.start, end = sel.end), text), anchor)
     }
 
-    override fun onDragStart() = clearSelection()
+    override fun onSwipe() = clearSelection()
 
     companion object {
         /** Inverts colors, then turns hues back around, so dark pages keep their colors. */

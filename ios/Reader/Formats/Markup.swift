@@ -12,6 +12,8 @@ final class Node {
     var attributes: [String: String]
     var children: [Node] = []
     weak var parent: Node?
+    /// The book's CSS, set on a chapter's root for showing it in its own styles.
+    var stylesheet: Stylesheet?
 
     init(_ kind: Kind, attributes: [String: String] = [:]) {
         self.kind = kind
